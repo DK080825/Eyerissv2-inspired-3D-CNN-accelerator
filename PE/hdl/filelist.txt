@@ -1,0 +1,13 @@
+D:\Eyeriss v2 Accelerator\PE\hdl\Iact_addr_Spad.v
+D:\Eyeriss v2 Accelerator\PE\hdl\Iact_data_Spad.v
+D:\Eyeriss v2 Accelerator\PE\hdl\PE_Cluster.v
+D:\Eyeriss v2 Accelerator\PE\hdl\PE_Cluster_controller.v
+D:\Eyeriss v2 Accelerator\PE\hdl\PE_Cluster_Data_Connections.v
+D:\Eyeriss v2 Accelerator\PE\hdl\PE_data_FIFO.v
+D:\Eyeriss v2 Accelerator\PE\hdl\PE_psum_FIFO.v
+D:\Eyeriss v2 Accelerator\PE\hdl\Proccesing_Element_Core.v
+D:\Eyeriss v2 Accelerator\PE\hdl\Processing_Element_Controller.v
+D:\Eyeriss v2 Accelerator\PE\hdl\Processing_Element_fixed.v
+D:\Eyeriss v2 Accelerator\PE\hdl\Psum_Spad_2R2W.v
+D:\Eyeriss v2 Accelerator\PE\hdl\Weight_addr_Spad.v
+D:\Eyeriss v2 Accelerator\PE\hdl\Weight_data_Spad.v

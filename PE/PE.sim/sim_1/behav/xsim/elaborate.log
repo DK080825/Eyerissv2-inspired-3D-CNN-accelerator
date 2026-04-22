@@ -1,0 +1,32 @@
+Vivado Simulator v2024.2.0
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+Copyright 2022-2024 Advanced Micro Devices, Inc. All Rights Reserved.
+Running: D:/Xilinx/Vivado/2024.2/bin/unwrapped/win64.o/xelab.exe --incr --debug typical --relax --mt 2 -L xil_defaultlib -L uvm -L unisims_ver -L unimacro_ver -L secureip -L xpm --snapshot tb_processing_element_core_demo_behav xil_defaultlib.tb_processing_element_core_demo xil_defaultlib.glbl -log elaborate.log 
+Using 2 slave threads.
+Starting static elaboration
+Pass Through NonSizing Optimizer
+Completed static elaboration
+Starting simulation data flow analysis
+WARNING: [XSIM 43-4099] "D:/Eyeriss v2 Accelerator/PE/hdl/Proccesing_Element_Core.v" Line 1. Module Processing_Element_core_pipeline doesn't have a timescale but at least one module in design has a timescale.
+WARNING: [XSIM 43-4099] "D:/Eyeriss v2 Accelerator/PE/hdl/Iact_addr_Spad.v" Line 9. Module Iact_Address_Spad_default doesn't have a timescale but at least one module in design has a timescale.
+WARNING: [XSIM 43-4099] "D:/Eyeriss v2 Accelerator/PE/hdl/Iact_data_Spad.v" Line 16. Module Iact_Data_Spad doesn't have a timescale but at least one module in design has a timescale.
+WARNING: [XSIM 43-4099] "D:/Eyeriss v2 Accelerator/PE/hdl/Weight_addr_Spad.v" Line 10. Module Weight_Address_Spad_default doesn't have a timescale but at least one module in design has a timescale.
+WARNING: [XSIM 43-4099] "D:/Eyeriss v2 Accelerator/PE/hdl/Weight_data_Spad.v" Line 17. Module Weight_Data_Spad doesn't have a timescale but at least one module in design has a timescale.
+WARNING: [XSIM 43-4099] "D:/Eyeriss v2 Accelerator/PE/hdl/Psum_Spad_2R2W.v" Line 10. Module Psum_Spad_2R2W doesn't have a timescale but at least one module in design has a timescale.
+WARNING: [XSIM 43-4099] "D:/Eyeriss v2 Accelerator/PE/hdl/Proccesing_Element_Core.v" Line 1. Module Processing_Element_core_pipeline doesn't have a timescale but at least one module in design has a timescale.
+WARNING: [XSIM 43-4099] "D:/Eyeriss v2 Accelerator/PE/hdl/Iact_addr_Spad.v" Line 9. Module Iact_Address_Spad_default doesn't have a timescale but at least one module in design has a timescale.
+WARNING: [XSIM 43-4099] "D:/Eyeriss v2 Accelerator/PE/hdl/Iact_data_Spad.v" Line 16. Module Iact_Data_Spad doesn't have a timescale but at least one module in design has a timescale.
+WARNING: [XSIM 43-4099] "D:/Eyeriss v2 Accelerator/PE/hdl/Weight_addr_Spad.v" Line 10. Module Weight_Address_Spad_default doesn't have a timescale but at least one module in design has a timescale.
+WARNING: [XSIM 43-4099] "D:/Eyeriss v2 Accelerator/PE/hdl/Weight_data_Spad.v" Line 17. Module Weight_Data_Spad doesn't have a timescale but at least one module in design has a timescale.
+WARNING: [XSIM 43-4099] "D:/Eyeriss v2 Accelerator/PE/hdl/Psum_Spad_2R2W.v" Line 10. Module Psum_Spad_2R2W doesn't have a timescale but at least one module in design has a timescale.
+Completed simulation data flow analysis
+Time Resolution for simulation is 1ps
+Compiling module xil_defaultlib.Iact_Address_Spad_default
+Compiling module xil_defaultlib.Iact_Data_Spad
+Compiling module xil_defaultlib.Weight_Address_Spad_default
+Compiling module xil_defaultlib.Weight_Data_Spad
+Compiling module xil_defaultlib.Psum_Spad_2R2W
+Compiling module xil_defaultlib.Processing_Element_core_pipeline
+Compiling module xil_defaultlib.tb_processing_element_core_demo
+Compiling module xil_defaultlib.glbl
+Built simulation snapshot tb_processing_element_core_demo_behav

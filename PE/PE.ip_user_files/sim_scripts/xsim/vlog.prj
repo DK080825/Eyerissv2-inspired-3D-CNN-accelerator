@@ -1,0 +1,22 @@
+sv xpm --include "../../../../../" \
+"D:/Xilinx/Vivado/2024.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv" \
+
+verilog blk_mem_gen_v8_4_9 --include "../../../../../" \
+"../../ipstatic/simulation/blk_mem_gen_v8_4.v" \
+
+verilog xil_defaultlib --include "../../../../../" \
+"../../../PE.gen/sources_1/ip/IP_Weight_DATA_Spad_BRAM/sim/IP_Weight_DATA_Spad_BRAM.v" \
+"../../../hdl/Iact_addr_Spad.v" \
+"../../../hdl/Iact_data_Spad.v" \
+"../../../hdl/Proccesing_Element_Core_demo.v" \
+"../../../hdl/Psum_Spad_2R2W.v" \
+"../../../hdl/Weight_addr_Spad.v" \
+"../../../hdl/Weight_data_Spad.v" \
+
+sv xil_defaultlib --include "../../../../../" \
+"../../../hdl/tb/tb_processing_element_core_demo.sv" \
+
+verilog xil_defaultlib "glbl.v"
+
+# Do not sort compile order
+nosort

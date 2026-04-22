@@ -1,0 +1,374 @@
+m255
+K4
+z2
+!s11f vlog 2020.1 2020.02, Feb 28 2020
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z0 dD:/Eyeriss v2 Accelerator/PE/hdl
+vIact_Address_Spad
+Z1 !s110 1776619321
+!i10b 1
+!s100 =;z<Qi4=:UP?eTDGnl15Z0
+Z2 !s11b Dg1SIo80bB@j0V0VzS_@n1
+Ic@ODUcE=]GX@[iPBZMh5j1
+Z3 VDg1SIo80bB@j0V0VzS_@n1
+R0
+w1776607041
+8Iact_addr_Spad.v
+FIact_addr_Spad.v
+!i122 13
+L0 9 106
+Z4 OV;L;2020.1;71
+r1
+!s85 0
+31
+Z5 !s108 1776619320.000000
+!s107 tb\tb_Processing_Element_best_golden_matrix13x13_3x3.sv|Processing_Element_fixed.v|PE_psum_FIFO.v|PE_data_FIFO.v|Psum_Spad_2R2W.v|Weight_data_Spad.v|Weight_addr_Spad.v|Iact_data_Spad.v|Iact_addr_Spad.v|Processing_Element_Controller.v|Proccesing_Element_Core.v|
+Z6 !s90 -work|work|Proccesing_Element_Core.v|Processing_Element_Controller.v|Iact_addr_Spad.v|Iact_data_Spad.v|Weight_addr_Spad.v|Weight_data_Spad.v|Psum_Spad_2R2W.v|PE_data_FIFO.v|PE_psum_FIFO.v|Processing_Element_fixed.v|tb\tb_Processing_Element_best_golden_matrix13x13_3x3.sv|
+!i113 1
+Z7 o-work work
+Z8 tCvgOpt 0
+n@iact_@address_@spad
+vIact_Data_Spad
+R1
+!i10b 1
+!s100 em]Rj0UX>?EU1l7jmGP6N1
+R2
+IkJ9IPoGS_P7?<;E<b5bWM0
+R3
+R0
+w1776607228
+8Iact_data_Spad.v
+FIact_data_Spad.v
+!i122 13
+L0 16 72
+R4
+r1
+!s85 0
+31
+R5
+Z9 !s107 tb\tb_Processing_Element_best_golden_matrix13x13_3x3.sv|Processing_Element_fixed.v|PE_psum_FIFO.v|PE_data_FIFO.v|Psum_Spad_2R2W.v|Weight_data_Spad.v|Weight_addr_Spad.v|Iact_data_Spad.v|Iact_addr_Spad.v|Processing_Element_Controller.v|Proccesing_Element_Core.v|
+R6
+!i113 1
+R7
+R8
+n@iact_@data_@spad
+vPE_Cluster
+Z10 !s110 1776616142
+!i10b 1
+!s100 7;j=0:BSKC=fSanVGhVjb2
+R2
+I:0HzQS[h:lUHlV6_i6k==0
+R3
+R0
+w1776610486
+8PE_Cluster.v
+FPE_Cluster.v
+!i122 5
+L0 2 210
+R4
+r1
+!s85 0
+31
+Z11 !s108 1776616142.000000
+Z12 !s107 tb\tb_processing_element_core_demo.sv|tb\tb_Processing_Element_best_golden_matrix13x13_3x3.sv|PE_psum_FIFO.v|PE_data_FIFO.v|Psum_Spad_2R2W.v|Weight_data_Spad.v|Weight_addr_Spad.v|Iact_data_Spad.v|Iact_addr_Spad.v|PE_Cluster.v|PE_Cluster_Data_Connections.v|PE_Cluster_controller.v|Processing_Element_fixed.v|Proccesing_Element_Core.v|Processing_Element_Controller.v|
+Z13 !s90 -work|work|Processing_Element_Controller.v|Proccesing_Element_Core.v|Processing_Element_fixed.v|PE_Cluster_controller.v|PE_Cluster_Data_Connections.v|PE_Cluster.v|Iact_addr_Spad.v|Iact_data_Spad.v|Weight_addr_Spad.v|Weight_data_Spad.v|Psum_Spad_2R2W.v|PE_data_FIFO.v|PE_psum_FIFO.v|tb\tb_Processing_Element_best_golden_matrix13x13_3x3.sv|tb\tb_processing_element_core_demo.sv|
+!i113 1
+R7
+R8
+n@p@e_@cluster
+vPE_Cluster_Connection
+R10
+!i10b 1
+!s100 <k@jU8OYY[BG^IAUj?5@I2
+R2
+IRmYNKB^ASQF7IQ7o@L5e`1
+R3
+R0
+w1776610227
+8PE_Cluster_Data_Connections.v
+FPE_Cluster_Data_Connections.v
+!i122 5
+L0 6 36
+R4
+r1
+!s85 0
+31
+R11
+R12
+R13
+!i113 1
+R7
+R8
+n@p@e_@cluster_@connection
+vPE_Cluster_controller
+R10
+!i10b 1
+!s100 _LCBFV`KJFXR5ViI5SO@m0
+R2
+ID3oML2?P7[=k6WW>[dG3_0
+R3
+R0
+w1776610199
+8PE_Cluster_controller.v
+FPE_Cluster_controller.v
+!i122 5
+L0 8 72
+R4
+r1
+!s85 0
+31
+R11
+R12
+R13
+!i113 1
+R7
+R8
+n@p@e_@cluster_controller
+vPE_data_FIFO
+R1
+!i10b 1
+!s100 APfmmm<a5QZSWnA1oifMd2
+R2
+IQeHmIC61jRG;;ia9Gb:V=1
+R3
+R0
+w1776607042
+8PE_data_FIFO.v
+FPE_data_FIFO.v
+!i122 13
+L0 7 84
+R4
+r1
+!s85 0
+31
+R5
+R9
+R6
+!i113 1
+R7
+R8
+n@p@e_data_@f@i@f@o
+vPE_psum_FIFO
+R1
+!i10b 1
+!s100 BMQ73ACT7]Ib9z<0k9:en1
+R2
+IQGZRMaRnhb?hB]aT46JIa0
+R3
+R0
+w1776607044
+8PE_psum_FIFO.v
+FPE_psum_FIFO.v
+!i122 13
+L0 7 86
+R4
+r1
+!s85 0
+31
+R5
+R9
+R6
+!i113 1
+R7
+R8
+n@p@e_psum_@f@i@f@o
+vProcessing_Element
+R1
+!i10b 1
+!s100 W2W_ClNH]UOTKY_ZaJD:H1
+R2
+IJ]^6:hk:8Kk;?7;iYFmjk2
+R3
+R0
+w1776608124
+8Processing_Element_fixed.v
+FProcessing_Element_fixed.v
+!i122 13
+L0 8 505
+R4
+r1
+!s85 0
+31
+R5
+R9
+R6
+!i113 1
+R7
+R8
+n@processing_@element
+vProcessing_Element_Controller
+R1
+!i10b 1
+!s100 3kW^aRGh2laY54zBa?2eK0
+R2
+IUXgT@8VEm8MnOK>>?`a@Z0
+R3
+R0
+w1776616129
+8Processing_Element_Controller.v
+FProcessing_Element_Controller.v
+!i122 13
+L0 9 160
+R4
+r1
+!s85 0
+31
+R5
+R9
+R6
+!i113 1
+R7
+R8
+n@processing_@element_@controller
+vProcessing_Element_core_pipeline
+R1
+!i10b 1
+!s100 gGz^[k5hXcF]KPYOZk4eN2
+R2
+ISQfMJ>B^IolJeTWnU[hoM3
+R3
+R0
+w1776619307
+8Proccesing_Element_Core.v
+FProccesing_Element_Core.v
+!i122 13
+L0 1 940
+R4
+r1
+!s85 0
+31
+R5
+R9
+R6
+!i113 1
+R7
+R8
+n@processing_@element_core_pipeline
+vPsum_Spad_2R2W
+R1
+!i10b 1
+!s100 BWE:T;19J^M_aU1b[DHdC3
+R2
+I5SM9WGaomFWAG`Vk5fDco0
+R3
+R0
+w1776327316
+8Psum_Spad_2R2W.v
+FPsum_Spad_2R2W.v
+!i122 13
+L0 10 137
+R4
+r1
+!s85 0
+31
+R5
+R9
+R6
+!i113 1
+R7
+R8
+n@psum_@spad_2@r2@w
+vtb_Processing_Element_best_golden_matrix13x13_3x3
+Z14 DXx6 sv_std 3 std 0 22 VYECXdT12H8WgbUP_5Y6:3
+R1
+!i10b 1
+!s100 zJSkMTJ@oM]P^O:@IE2l23
+R2
+IGBTVjlFzFLJHPEMlUI4aW2
+R3
+S1
+R0
+w1776617690
+8tb\tb_Processing_Element_best_golden_matrix13x13_3x3.sv
+Ftb\tb_Processing_Element_best_golden_matrix13x13_3x3.sv
+!i122 13
+L0 30 1356
+R4
+r1
+!s85 0
+31
+R5
+R9
+R6
+!i113 1
+R7
+R8
+ntb_@processing_@element_best_golden_matrix13x13_3x3
+vtb_processing_element_core_demo
+R14
+R10
+!i10b 1
+!s100 mQf688UX89HC3>SQB3Sc;0
+R2
+IkZJ_Dcl_AT>`Umf1=XaSU1
+R3
+S1
+R0
+w1776597646
+8tb\tb_processing_element_core_demo.sv
+Ftb\tb_processing_element_core_demo.sv
+!i122 5
+L0 3 1269
+R4
+r1
+!s85 0
+31
+R11
+R12
+R13
+!i113 1
+R7
+R8
+vWeight_Address_Spad
+R1
+!i10b 1
+!s100 JgZ]9cQIb1eC]k<JLOFHS3
+R2
+IM7V>Chk5X^4^jJCfI05mU2
+R3
+R0
+w1776607068
+8Weight_addr_Spad.v
+FWeight_addr_Spad.v
+!i122 13
+L0 10 105
+R4
+r1
+!s85 0
+31
+R5
+R9
+R6
+!i113 1
+R7
+R8
+n@weight_@address_@spad
+vWeight_Data_Spad
+R1
+!i10b 1
+!s100 PcOzIfDEmHjP1c0^I7`f;2
+R2
+II?Oob7:XhA;IDOg93XmT=3
+R3
+R0
+w1776607233
+8Weight_data_Spad.v
+FWeight_data_Spad.v
+!i122 13
+L0 17 120
+R4
+r1
+!s85 0
+31
+R5
+R9
+R6
+!i113 1
+R7
+R8
+n@weight_@data_@spad

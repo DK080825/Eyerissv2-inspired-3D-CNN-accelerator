@@ -1,0 +1,15 @@
+0.7
+2020.2
+Nov  8 2024
+22:36:57
+D:/Eyeriss v2 Accelerator/PE/PE.gen/sources_1/ip/IP_Iact_DATA_Spad_BRAM/sim/IP_Iact_DATA_Spad_BRAM.v,1774447144,verilog,,D:/Eyeriss v2 Accelerator/PE/hdl/Iact_addr_Spad.v,,IP_Iact_DATA_Spad_BRAM,,uvm,../../../../../../,,,,,
+D:/Eyeriss v2 Accelerator/PE/PE.gen/sources_1/ip/IP_Weight_DATA_Spad_BRAM/sim/IP_Weight_DATA_Spad_BRAM.v,1776506299,verilog,,D:/Eyeriss v2 Accelerator/PE/hdl/Iact_addr_Spad.v,,IP_Weight_DATA_Spad_BRAM,,uvm,../../../../../../,,,,,
+D:/Eyeriss v2 Accelerator/PE/PE.sim/sim_1/behav/xsim/glbl.v,1724786425,verilog,,,,glbl,,uvm,,,,,,
+D:/Eyeriss v2 Accelerator/PE/PE.srcs/sim_1/new/Weight_data_Spad.sv,1776433080,systemVerilog,,,,tb_Weight_Data_Spad,,uvm,../../../../../../,,,,,
+D:/Eyeriss v2 Accelerator/PE/hdl/Iact_addr_Spad.v,1776607041,verilog,,D:/Eyeriss v2 Accelerator/PE/hdl/Iact_data_Spad.v,,Iact_Address_Spad,,uvm,../../../../../../,,,,,
+D:/Eyeriss v2 Accelerator/PE/hdl/Iact_data_Spad.v,1776607228,verilog,,D:/Eyeriss v2 Accelerator/PE/hdl/Proccesing_Element_Core.v,,Iact_Data_Spad,,uvm,../../../../../../,,,,,
+D:/Eyeriss v2 Accelerator/PE/hdl/Proccesing_Element_Core.v,1776788981,verilog,,D:/Eyeriss v2 Accelerator/PE/hdl/Psum_Spad_2R2W.v,,Processing_Element_core_pipeline,,uvm,../../../../../../,,,,,
+D:/Eyeriss v2 Accelerator/PE/hdl/Psum_Spad_2R2W.v,1776327316,verilog,,D:/Eyeriss v2 Accelerator/PE/hdl/Weight_addr_Spad.v,,Psum_Spad_2R2W,,uvm,../../../../../../,,,,,
+D:/Eyeriss v2 Accelerator/PE/hdl/Weight_addr_Spad.v,1776607068,verilog,,D:/Eyeriss v2 Accelerator/PE/hdl/Weight_data_Spad.v,,Weight_Address_Spad,,uvm,../../../../../../,,,,,
+D:/Eyeriss v2 Accelerator/PE/hdl/Weight_data_Spad.v,1776607233,verilog,,,,Weight_Data_Spad,,uvm,../../../../../../,,,,,
+D:/Eyeriss v2 Accelerator/PE/hdl/tb/tb_processing_element_core_demo.sv,1776756800,systemVerilog,,,,tb_processing_element_core_demo,,uvm,../../../../../../,,,,,

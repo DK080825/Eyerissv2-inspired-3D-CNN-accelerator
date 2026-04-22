@@ -1,0 +1,14 @@
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/Eyeriss v2 Accelerator/PE/hdl/Iact_addr_Spad.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module Iact_Address_Spad
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/Eyeriss v2 Accelerator/PE/hdl/Iact_data_Spad.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module Iact_Data_Spad
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/Eyeriss v2 Accelerator/PE/hdl/Proccesing_Element_Core.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module Processing_Element_core_pipeline
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/Eyeriss v2 Accelerator/PE/hdl/Psum_Spad_2R2W.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module Psum_Spad_2R2W
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/Eyeriss v2 Accelerator/PE/hdl/Weight_addr_Spad.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module Weight_Address_Spad
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/Eyeriss v2 Accelerator/PE/hdl/Weight_data_Spad.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module Weight_Data_Spad
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "D:/Eyeriss v2 Accelerator/PE/hdl/tb/tb_processing_element_core_demo.sv" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module tb_processing_element_core_demo

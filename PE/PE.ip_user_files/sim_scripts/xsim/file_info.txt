@@ -1,0 +1,12 @@
+xpm_memory.sv,systemverilog,xpm,D:/Xilinx/Vivado/2024.2/data/ip/xpm/xpm_memory/hdl/xpm_memory.sv,incdir="../../../../../"
+xpm_VCOMP.vhd,vhdl,xpm,D:/Xilinx/Vivado/2024.2/data/ip/xpm/xpm_VCOMP.vhd,incdir="../../../../../"
+blk_mem_gen_v8_4.v,verilog,blk_mem_gen_v8_4_9,../../ipstatic/simulation/blk_mem_gen_v8_4.v,incdir="../../../../../"
+IP_Weight_DATA_Spad_BRAM.v,verilog,xil_defaultlib,../../../PE.gen/sources_1/ip/IP_Weight_DATA_Spad_BRAM/sim/IP_Weight_DATA_Spad_BRAM.v,incdir="../../../../../"
+Iact_addr_Spad.v,verilog,xil_defaultlib,D:/Eyeriss v2 Accelerator/PE/hdl/Iact_addr_Spad.v,incdir="../../../../../"
+Iact_data_Spad.v,verilog,xil_defaultlib,D:/Eyeriss v2 Accelerator/PE/hdl/Iact_data_Spad.v,incdir="../../../../../"
+Proccesing_Element_Core_demo.v,verilog,xil_defaultlib,D:/Eyeriss v2 Accelerator/PE/hdl/Proccesing_Element_Core_demo.v,incdir="../../../../../"
+Psum_Spad_2R2W.v,verilog,xil_defaultlib,D:/Eyeriss v2 Accelerator/PE/hdl/Psum_Spad_2R2W.v,incdir="../../../../../"
+Weight_addr_Spad.v,verilog,xil_defaultlib,D:/Eyeriss v2 Accelerator/PE/hdl/Weight_addr_Spad.v,incdir="../../../../../"
+Weight_data_Spad.v,verilog,xil_defaultlib,D:/Eyeriss v2 Accelerator/PE/hdl/Weight_data_Spad.v,incdir="../../../../../"
+tb_processing_element_core_demo.sv,systemverilog,xil_defaultlib,D:/Eyeriss v2 Accelerator/PE/hdl/tb/tb_processing_element_core_demo.sv,incdir="../../../../../"
+glbl.v,Verilog,xil_defaultlib,glbl.v

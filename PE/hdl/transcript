@@ -1,0 +1,269 @@
+# vsim -c work.tb_Processing_Element_best_golden_matrix13x13_3x3 -do "run -all; quit -f" 
+# Start time: 00:22:01 on Apr 20,2026
+# Loading sv_std.std
+# Loading work.tb_Processing_Element_best_golden_matrix13x13_3x3
+# Loading work.Processing_Element
+# Loading work.Processing_Element_Controller
+# Loading work.Processing_Element_core_pipeline
+# Loading work.Iact_Address_Spad
+# Loading work.Iact_Data_Spad
+# Loading work.Weight_Address_Spad
+# Loading work.Weight_Data_Spad
+# Loading work.Psum_Spad_2R2W
+# Loading work.PE_data_FIFO
+# Loading work.PE_psum_FIFO
+# run -all
+# ============================================================
+# START FULL-STREAM LOAD : nominal_matrix_13x13_3x3
+# ============================================================
+# [INFO ] nominal_matrix_13x13_3x3 : all_write_fin observed at t=345000
+# ============================================================
+# START CAL PHASE : nominal_matrix_13x13_3x3
+# ============================================================
+# ------------------------------------------------------------
+# GOLDEN LOCAL PSUM TABLE : nominal_matrix_13x13_3x3
+# ------------------------------------------------------------
+# [GOLDEN] local_psum[0] seg=0 row=0 = 1
+# [GOLDEN] local_psum[1] seg=0 row=1 = -5
+# [GOLDEN] local_psum[2] seg=0 row=2 = 5
+# [GOLDEN] local_psum[3] seg=0 row=3 = 0
+# [GOLDEN] local_psum[4] seg=1 row=0 = 9
+# [GOLDEN] local_psum[5] seg=1 row=1 = 16
+# [GOLDEN] local_psum[6] seg=1 row=2 = 3
+# [GOLDEN] local_psum[7] seg=1 row=3 = 0
+# [GOLDEN] local_psum[8] seg=2 row=0 = 10
+# [GOLDEN] local_psum[9] seg=2 row=1 = -10
+# [GOLDEN] local_psum[10] seg=2 row=2 = 5
+# [GOLDEN] local_psum[11] seg=2 row=3 = 0
+# [GOLDEN] local_psum[12] seg=3 row=0 = -6
+# [GOLDEN] local_psum[13] seg=3 row=1 = -2
+# [GOLDEN] local_psum[14] seg=3 row=2 = 6
+# [GOLDEN] local_psum[15] seg=3 row=3 = 0
+# [GOLDEN] local_psum[16] seg=4 row=0 = 5
+# [GOLDEN] local_psum[17] seg=4 row=1 = -14
+# [GOLDEN] local_psum[18] seg=4 row=2 = -14
+# [GOLDEN] local_psum[19] seg=4 row=3 = 0
+# [GOLDEN] local_psum[20] seg=5 row=0 = 0
+# [GOLDEN] local_psum[21] seg=5 row=1 = 0
+# [GOLDEN] local_psum[22] seg=5 row=2 = 0
+# [GOLDEN] local_psum[23] seg=5 row=3 = 0
+# [GOLDEN] local_psum[24] seg=6 row=0 = -7
+# [GOLDEN] local_psum[25] seg=6 row=1 = 17
+# [GOLDEN] local_psum[26] seg=6 row=2 = 3
+# [GOLDEN] local_psum[27] seg=6 row=3 = 0
+# [GOLDEN] local_psum[28] seg=7 row=0 = 1
+# [GOLDEN] local_psum[29] seg=7 row=1 = -4
+# [GOLDEN] local_psum[30] seg=7 row=2 = -5
+# [GOLDEN] local_psum[31] seg=7 row=3 = 0
+# [INFO ] nominal_matrix_13x13_3x3 : cal_fin observed at t=8685000
+# ------------------------------------------------------------
+# CHECK LOCAL PSUM MEMORY / DATAPATH VS GOLDEN : nominal_matrix_13x13_3x3
+# ------------------------------------------------------------
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[0] seg=0 row=0 | golden=1 | datapath(mem_r0)=1 | datapath(mem_r1)=1
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[1] seg=0 row=1 | golden=-5 | datapath(mem_r0)=-5 | datapath(mem_r1)=-5
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[2] seg=0 row=2 | golden=5 | datapath(mem_r0)=5 | datapath(mem_r1)=5
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[3] seg=0 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[4] seg=1 row=0 | golden=9 | datapath(mem_r0)=9 | datapath(mem_r1)=9
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[5] seg=1 row=1 | golden=16 | datapath(mem_r0)=16 | datapath(mem_r1)=16
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[6] seg=1 row=2 | golden=3 | datapath(mem_r0)=3 | datapath(mem_r1)=3
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[7] seg=1 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[8] seg=2 row=0 | golden=10 | datapath(mem_r0)=10 | datapath(mem_r1)=10
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[9] seg=2 row=1 | golden=-10 | datapath(mem_r0)=-10 | datapath(mem_r1)=-10
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[10] seg=2 row=2 | golden=5 | datapath(mem_r0)=5 | datapath(mem_r1)=5
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[11] seg=2 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[12] seg=3 row=0 | golden=-6 | datapath(mem_r0)=-6 | datapath(mem_r1)=-6
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[13] seg=3 row=1 | golden=-2 | datapath(mem_r0)=-2 | datapath(mem_r1)=-2
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[14] seg=3 row=2 | golden=6 | datapath(mem_r0)=6 | datapath(mem_r1)=6
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[15] seg=3 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[16] seg=4 row=0 | golden=5 | datapath(mem_r0)=5 | datapath(mem_r1)=5
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[17] seg=4 row=1 | golden=-14 | datapath(mem_r0)=-14 | datapath(mem_r1)=-14
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[18] seg=4 row=2 | golden=-14 | datapath(mem_r0)=-14 | datapath(mem_r1)=-14
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[19] seg=4 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[20] seg=5 row=0 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[21] seg=5 row=1 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[22] seg=5 row=2 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[23] seg=5 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[24] seg=6 row=0 | golden=-7 | datapath(mem_r0)=-7 | datapath(mem_r1)=-7
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[25] seg=6 row=1 | golden=17 | datapath(mem_r0)=17 | datapath(mem_r1)=17
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[26] seg=6 row=2 | golden=3 | datapath(mem_r0)=3 | datapath(mem_r1)=3
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[27] seg=6 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[28] seg=7 row=0 | golden=1 | datapath(mem_r0)=1 | datapath(mem_r1)=1
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[29] seg=7 row=1 | golden=-4 | datapath(mem_r0)=-4 | datapath(mem_r1)=-4
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[30] seg=7 row=2 | golden=-5 | datapath(mem_r0)=-5 | datapath(mem_r1)=-5
+# [ OK  ] nominal_matrix_13x13_3x3 : local_psum[31] seg=7 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# ============================================================
+# START MERGE PHASE : nominal_matrix_13x13_3x3
+# ============================================================
+# [INFO ] nominal_matrix_13x13_3x3 : controller entered MERGE at t=8715000
+# [INFO ] nominal_matrix_13x13_3x3 : core entered MODE_MERGE at t=8735000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[0] = 101 at t=8745000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[1] = 96 at t=8755000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[2] = 107 at t=8765000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[3] = 103 at t=8785000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[4] = 113 at t=8805000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[5] = 121 at t=8825000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[6] = 109 at t=8845000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[7] = 107 at t=8865000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[8] = 118 at t=8885000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[9] = 99 at t=8905000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[10] = 115 at t=8925000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[11] = 111 at t=8945000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[12] = 106 at t=8965000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[13] = 111 at t=8985000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[14] = 120 at t=9005000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[15] = 115 at t=9025000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[16] = 121 at t=9045000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[17] = 103 at t=9065000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[18] = 104 at t=9085000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[19] = 119 at t=9105000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[20] = 120 at t=9125000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[21] = 121 at t=9145000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[22] = 122 at t=9165000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[23] = 123 at t=9185000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[24] = 117 at t=9205000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[25] = 142 at t=9225000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[26] = 129 at t=9245000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[27] = 127 at t=9265000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[28] = 129 at t=9285000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[29] = 125 at t=9305000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[30] = 125 at t=9325000
+# [ OK  ] nominal_matrix_13x13_3x3 : psum_out[31] = 131 at t=9345000
+# [INFO ] nominal_matrix_13x13_3x3 : psum_add_fin observed at t=9345000
+# [INFO ] clear_and_reload_with_queued_merge : all_write_fin observed at t=9735000
+# [INFO ] clear_and_reload_with_queued_merge : cal_fin observed at t=18075000
+# ------------------------------------------------------------
+# CHECK LOCAL PSUM MEMORY / DATAPATH VS GOLDEN : clear_and_reload_with_queued_merge
+# ------------------------------------------------------------
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[0] seg=0 row=0 | golden=1 | datapath(mem_r0)=1 | datapath(mem_r1)=1
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[1] seg=0 row=1 | golden=-5 | datapath(mem_r0)=-5 | datapath(mem_r1)=-5
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[2] seg=0 row=2 | golden=5 | datapath(mem_r0)=5 | datapath(mem_r1)=5
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[3] seg=0 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[4] seg=1 row=0 | golden=9 | datapath(mem_r0)=9 | datapath(mem_r1)=9
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[5] seg=1 row=1 | golden=16 | datapath(mem_r0)=16 | datapath(mem_r1)=16
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[6] seg=1 row=2 | golden=3 | datapath(mem_r0)=3 | datapath(mem_r1)=3
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[7] seg=1 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[8] seg=2 row=0 | golden=10 | datapath(mem_r0)=10 | datapath(mem_r1)=10
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[9] seg=2 row=1 | golden=-10 | datapath(mem_r0)=-10 | datapath(mem_r1)=-10
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[10] seg=2 row=2 | golden=5 | datapath(mem_r0)=5 | datapath(mem_r1)=5
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[11] seg=2 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[12] seg=3 row=0 | golden=-6 | datapath(mem_r0)=-6 | datapath(mem_r1)=-6
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[13] seg=3 row=1 | golden=-2 | datapath(mem_r0)=-2 | datapath(mem_r1)=-2
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[14] seg=3 row=2 | golden=6 | datapath(mem_r0)=6 | datapath(mem_r1)=6
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[15] seg=3 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[16] seg=4 row=0 | golden=5 | datapath(mem_r0)=5 | datapath(mem_r1)=5
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[17] seg=4 row=1 | golden=-14 | datapath(mem_r0)=-14 | datapath(mem_r1)=-14
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[18] seg=4 row=2 | golden=-14 | datapath(mem_r0)=-14 | datapath(mem_r1)=-14
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[19] seg=4 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[20] seg=5 row=0 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[21] seg=5 row=1 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[22] seg=5 row=2 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[23] seg=5 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[24] seg=6 row=0 | golden=-7 | datapath(mem_r0)=-7 | datapath(mem_r1)=-7
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[25] seg=6 row=1 | golden=17 | datapath(mem_r0)=17 | datapath(mem_r1)=17
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[26] seg=6 row=2 | golden=3 | datapath(mem_r0)=3 | datapath(mem_r1)=3
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[27] seg=6 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[28] seg=7 row=0 | golden=1 | datapath(mem_r0)=1 | datapath(mem_r1)=1
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[29] seg=7 row=1 | golden=-4 | datapath(mem_r0)=-4 | datapath(mem_r1)=-4
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[30] seg=7 row=2 | golden=-5 | datapath(mem_r0)=-5 | datapath(mem_r1)=-5
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[31] seg=7 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [INFO ] clear_and_reload_with_queued_merge : all_write_fin observed at t=18425000
+# [INFO ] clear_and_reload_with_queued_merge : cal_fin observed at t=26765000
+# ------------------------------------------------------------
+# CHECK LOCAL PSUM MEMORY / DATAPATH VS GOLDEN : clear_and_reload_with_queued_merge
+# ------------------------------------------------------------
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[0] seg=0 row=0 | golden=1 | datapath(mem_r0)=1 | datapath(mem_r1)=1
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[1] seg=0 row=1 | golden=-5 | datapath(mem_r0)=-5 | datapath(mem_r1)=-5
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[2] seg=0 row=2 | golden=5 | datapath(mem_r0)=5 | datapath(mem_r1)=5
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[3] seg=0 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[4] seg=1 row=0 | golden=9 | datapath(mem_r0)=9 | datapath(mem_r1)=9
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[5] seg=1 row=1 | golden=16 | datapath(mem_r0)=16 | datapath(mem_r1)=16
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[6] seg=1 row=2 | golden=3 | datapath(mem_r0)=3 | datapath(mem_r1)=3
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[7] seg=1 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[8] seg=2 row=0 | golden=10 | datapath(mem_r0)=10 | datapath(mem_r1)=10
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[9] seg=2 row=1 | golden=-10 | datapath(mem_r0)=-10 | datapath(mem_r1)=-10
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[10] seg=2 row=2 | golden=5 | datapath(mem_r0)=5 | datapath(mem_r1)=5
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[11] seg=2 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[12] seg=3 row=0 | golden=-6 | datapath(mem_r0)=-6 | datapath(mem_r1)=-6
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[13] seg=3 row=1 | golden=-2 | datapath(mem_r0)=-2 | datapath(mem_r1)=-2
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[14] seg=3 row=2 | golden=6 | datapath(mem_r0)=6 | datapath(mem_r1)=6
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[15] seg=3 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[16] seg=4 row=0 | golden=5 | datapath(mem_r0)=5 | datapath(mem_r1)=5
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[17] seg=4 row=1 | golden=-14 | datapath(mem_r0)=-14 | datapath(mem_r1)=-14
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[18] seg=4 row=2 | golden=-14 | datapath(mem_r0)=-14 | datapath(mem_r1)=-14
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[19] seg=4 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[20] seg=5 row=0 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[21] seg=5 row=1 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[22] seg=5 row=2 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[23] seg=5 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[24] seg=6 row=0 | golden=-7 | datapath(mem_r0)=-7 | datapath(mem_r1)=-7
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[25] seg=6 row=1 | golden=17 | datapath(mem_r0)=17 | datapath(mem_r1)=17
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[26] seg=6 row=2 | golden=3 | datapath(mem_r0)=3 | datapath(mem_r1)=3
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[27] seg=6 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[28] seg=7 row=0 | golden=1 | datapath(mem_r0)=1 | datapath(mem_r1)=1
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[29] seg=7 row=1 | golden=-4 | datapath(mem_r0)=-4 | datapath(mem_r1)=-4
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[30] seg=7 row=2 | golden=-5 | datapath(mem_r0)=-5 | datapath(mem_r1)=-5
+# [ OK  ] clear_and_reload_with_queued_merge : local_psum[31] seg=7 row=3 | golden=0 | datapath(mem_r0)=0 | datapath(mem_r1)=0
+# ============================================================
+# START MERGE PHASE : clear_and_reload_with_queued_merge
+# ============================================================
+# [INFO ] clear_and_reload_with_queued_merge : controller entered MERGE at t=26785000
+# [INFO ] clear_and_reload_with_queued_merge : core entered MODE_MERGE at t=26805000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[0] = 101 at t=26815000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[1] = 96 at t=26845000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[2] = 107 at t=26855000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[3] = 103 at t=26865000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[4] = 113 at t=26885000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[5] = 121 at t=26915000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[6] = 109 at t=26925000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[7] = 107 at t=26945000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[8] = 118 at t=26985000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[9] = 99 at t=26995000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[10] = 115 at t=27005000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[11] = 111 at t=27025000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[12] = 106 at t=27055000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[13] = 111 at t=27065000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[14] = 120 at t=27085000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[15] = 115 at t=27125000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[16] = 121 at t=27135000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[17] = 103 at t=27145000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[18] = 104 at t=27165000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[19] = 119 at t=27195000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[20] = 120 at t=27205000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[21] = 121 at t=27225000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[22] = 122 at t=27265000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[23] = 123 at t=27275000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[24] = 117 at t=27285000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[25] = 142 at t=27305000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[26] = 129 at t=27335000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[27] = 127 at t=27345000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[28] = 129 at t=27365000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[29] = 125 at t=27405000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[30] = 125 at t=27415000
+# [ OK  ] clear_and_reload_with_queued_merge : psum_out[31] = 131 at t=27425000
+# [INFO ] clear_and_reload_with_queued_merge : psum_add_fin observed at t=27425000
+# ============================================================
+# START ILLEGAL CASE : illegal_missing_weight_data_sentinel
+# ============================================================
+# [INFO ] illegal_missing_weight_data_sentinel : illegal sequence correctly blocked progress
+# ============================================================
+# FUNCTIONAL COVERAGE SUMMARY
+# ============================================================
+# cov_all_write_fin                    = 1
+# cov_clear_flags                      = 1
+# cov_psum_spad_clear                  = 1
+# cov_empty_segment                    = 1
+# cov_singleton_segment                = 1
+# cov_last_lane_zero                   = 1
+# cov_backpressure                     = 1
+# cov_queued_merge                     = 1
+# cov_illegal_missing_weight_data_sentinel = 1
+# cov_pooling                          = 1
+# cov_protocol_no_change_while_stalled = 0
+# coverage_hits = 10 / 10
+# ============================================================
+# BEST GOLDEN TESTBENCH PASSED
+# ============================================================
+# ** Note: $finish    : tb/tb_Processing_Element_best_golden_matrix13x13_3x3.sv(1382)
+#    Time: 29710 ns  Iteration: 1  Instance: /tb_Processing_Element_best_golden_matrix13x13_3x3
+# End time: 00:22:02 on Apr 20,2026, Elapsed time: 0:00:01
+# Errors: 0, Warnings: 0
