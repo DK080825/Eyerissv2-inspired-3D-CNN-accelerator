@@ -1,1 +1,0 @@
-vopt -l elaborate.log +acc=npr -suppress 10016  -L xil_defaultlib -L xpm -L blk_mem_gen_v8_4_9 -L unisims_ver -L unimacro_ver -L secureip -work xil_defaultlib xil_defaultlib.tb_processing_element_core_demo xil_defaultlib.glbl -o tb_processing_element_core_demo_opt
