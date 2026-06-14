@@ -8,14 +8,14 @@
 
 `default_nettype none
 module Processing_Element_core_pipeline #(
-    // SPAD depths (Eyeriss v2 PE)
-    parameter integer IACT_ADDR_SPAD_DEPTH   = 9,
-    parameter integer IACT_DATA_SPAD_DEPTH   = 16,
+    // SPAD depths (Eyeriss v2 PE) — sized for cluster conv3x3 Test 2 (9 segs, 27 payloads/row)
+    parameter integer IACT_ADDR_SPAD_DEPTH   = 10,  // 9 segments => 10 cumulative boundaries + sentinel
+    parameter integer IACT_DATA_SPAD_DEPTH   = 32,  // 3x3 outputs x 3 kernel taps = 27 beats/row
     parameter integer WEIGHT_ADDR_SPAD_DEPTH = 16,
     parameter integer WEIGHT_DATA_SPAD_DEPTH = 96,
     parameter integer PSUM_SPAD_DEPTH          = 32,
-    // Derived widths: $clog2(depth) indexes RAM; iact boundaries use +1 bit for exclusive-end (0..depth).
-    parameter integer IACT_ADDR_W            = ($clog2(IACT_DATA_SPAD_DEPTH) + 1),
+    // 5b addr matches cluster/TB; boundary values up to 27 fit in 5 bits.
+    parameter integer IACT_ADDR_W            = 5,
     parameter integer IACT_DATA_PTR_W          = ($clog2(IACT_DATA_SPAD_DEPTH) + 1),
     parameter integer IACT_SEG_IDX_W           = $clog2(IACT_ADDR_SPAD_DEPTH),
     parameter integer WEIGHT_ADDR_W            = $clog2(WEIGHT_DATA_SPAD_DEPTH),
@@ -42,7 +42,8 @@ module Processing_Element_core_pipeline #(
     input  wire                         psum_router_ready_in,
     output wire                         psum_router_valid_out,
     output wire signed [PSUM_W-1:0]     psum_router_data_out,
-    
+    output wire                         psum_merge_out_pending_out,
+
     input  wire                         iact_router_addr_valid_in,
     input  wire [IACT_ADDR_W-1:0]       iact_router_addr_in,
     output wire                         iact_router_addr_ready_out,
@@ -121,11 +122,16 @@ assign pool_router_out_valid_out = pool_out_valid_r;
 assign pool_router_out_data_out  = pool_out_r;
 reg [PSUM_ADDR_W-1:0] merge_idx_r;
 reg                                psum_rd_en0_r;
+reg                                psum_in_valid_r;
+reg                                merge_out_pending_r;
+reg signed [PSUM_W-1:0]            merge_out_pending_data_r;
 assign ctrl_status_cal_fin_out       = cal_fin_r;
 assign ctrl_status_psum_acc_fin_out = psum_acc_fin_r;
-assign psum_router_ready_out  = (mode_r == MODE_MERGE) ? psum_router_ready_in : 1'b0;
-reg psum_in_valid_r;
-assign psum_router_valid_out = (mode_r == MODE_MERGE) ? psum_in_valid_r : 1'b0;
+assign psum_router_ready_out  = (mode_r == MODE_MERGE)
+    ? (merge_out_pending_r ? 1'b0 : psum_router_ready_in)
+    : 1'b0;
+assign psum_router_valid_out = (mode_r == MODE_MERGE) && (merge_out_pending_r | psum_in_valid_r);
+assign psum_merge_out_pending_out = merge_out_pending_r;
 
 reg merge_req_pending_r;
 reg weight_addr_loaded_r;
@@ -147,8 +153,8 @@ assign load_rise_w = cluster_ctrl_load_en_in & ~load_en_r;
 // SPad interfaces — IACT address/data SPads are resident-only (metadata ring + payload log)
 // -----------------------------------------------------------------------------
 wire                               iact_address_stream_done_w;
-wire [IACT_DATA_PTR_W-1:0]         iact_spad_resident_rd_seg_begin_w;
-wire [IACT_DATA_PTR_W-1:0]         iact_spad_resident_rd_seg_end_w;
+wire [IACT_ADDR_W-1:0]             iact_spad_resident_rd_seg_begin_w;
+wire [IACT_ADDR_W-1:0]             iact_spad_resident_rd_seg_end_w;
 reg  [IACT_DATA_PTR_W:0]           iact_expected_data_entries_r;
 wire                               iact_addr_entry_fire_w;
 wire                               iact_payload_write_fire_w;
@@ -425,6 +431,8 @@ reg signed [IACT_VALUE_W-1:0]      sliding_resp_value_r;
 reg [WEIGHT_COL_IDX_W-1:0]        sliding_resp_weight_col_r;
 reg [PSUM_ADDR_W-1:0]              sliding_resp_psum_base_r;
 wire      resident_window_ready_w;
+// All segments in one window share window_psum_base; segment_id affects weight_col only.
+wire [PSUM_ADDR_W-1:0] itr_window_psum_base_w = window_psum_base_r;
 wire [IACT_DATA_PTR_W-1:0] iter_entry_next_w = iter_entry_abs_r + {{(IACT_DATA_PTR_W-1){1'b0}}, 1'b1};
 wire       iter_entry_is_last_w = (iter_entry_next_w == iter_entry_end_abs_r);
 wire [4:0] current_window_size_w = ctrl_cfg_window_size_in;
@@ -472,21 +480,29 @@ wire                               iact_iter_seg_valid_w;
 wire [IACT_DATA_PTR_W-1:0]         iact_iter_seg_begin_w;
 wire [IACT_DATA_PTR_W-1:0]         iact_iter_seg_end_w;
 assign iact_iter_seg_valid_w = iact_address_stream_done_r;
-assign iact_iter_seg_begin_w = iact_spad_resident_rd_seg_begin_w;
-assign iact_iter_seg_end_w   = iact_spad_resident_rd_seg_end_w;
+assign iact_iter_seg_begin_w =
+    {{(IACT_DATA_PTR_W - IACT_ADDR_W){1'b0}}, iact_spad_resident_rd_seg_begin_w};
+assign iact_iter_seg_end_w =
+    {{(IACT_DATA_PTR_W - IACT_ADDR_W){1'b0}}, iact_spad_resident_rd_seg_end_w};
 
 // CSC decode from itr_cap_* (latched into itr_dec_* in ST_ITER_DECODE).
 wire [IACT_VALUE_W-1:0]      itr_dec_val_w;
 wire [IACT_COUNT_W-1:0]      itr_dec_cnt_w;
 wire [IACT_DATA_PTR_W-1:0]   itr_dec_off_in_w;
 wire [IACT_DATA_PTR_W-1:0]   itr_dec_log_col_w;
+wire [IACT_DATA_PTR_W-1:0]   itr_dec_rel_col_w;
+wire [WEIGHT_COL_IDX_W-1:0]  itr_dec_full_weight_col_w;
 wire                         itr_dec_skip_w;
 assign itr_dec_val_w   = itr_cap_word_r[IACT_DATA_W-1:IACT_COUNT_W];
 assign itr_dec_cnt_w   = itr_cap_word_r[IACT_COUNT_W-1:0];
 assign itr_dec_off_in_w =
     itr_cap_first_r ? itr_dec_cnt_w : (itr_cap_offset_base_r + itr_dec_cnt_w);
 assign itr_dec_log_col_w = itr_cap_log_seg_r + itr_dec_off_in_w;
-assign itr_dec_skip_w    = (itr_dec_log_col_w >= {{(IACT_DATA_PTR_W-5){1'b0}}, current_window_size_w});
+// Relative column within segment (skip); full column indexes Weight_Address_Spad (C0 x S).
+assign itr_dec_rel_col_w = itr_dec_log_col_w - itr_cap_log_seg_r;
+assign itr_dec_skip_w    =
+    (itr_dec_rel_col_w >= {{(IACT_DATA_PTR_W-5){1'b0}}, current_segment_len_w});
+assign itr_dec_full_weight_col_w = itr_cap_log_seg_r + itr_dec_rel_col_w;
 
 // -----------------------------------------------------------------------------
 // Drive resident Iact_* SPad ports from router + window manager.
@@ -546,8 +562,6 @@ reg signed [IACT_VALUE_W-1:0]    s2_iact_value_r;
 reg [WEIGHT_COL_IDX_W-1:0]       s2_weight_col_r;
 reg [PSUM_ADDR_W-1:0]            s2_psum_base_r;
 
-assign weight_address_rd_col_idx_w = s2_weight_col_r;
-
 // -----------------------------------------------------------------------------
 // active task and overlapped weight/MAC/writeback pipeline
 // -----------------------------------------------------------------------------
@@ -555,6 +569,7 @@ reg                              active_task_valid_r;
 reg signed [IACT_VALUE_W-1:0]    active_iact_value_r;
 reg [WEIGHT_COL_IDX_W-1:0]       active_weight_col_r;
 reg [PSUM_ADDR_W-1:0]            active_psum_base_r;
+
 reg [WEIGHT_WORD_PTR_W-1:0]      weight_word_ptr_r;
 reg [WEIGHT_WORD_PTR_W-1:0]      weight_word_end_r;
 reg [PSUM_ADDR_W-1:0]            weight_row_base_r;
@@ -703,6 +718,7 @@ wire                             acc_mac_idle_w;
 wire                             acc_bypass_spad_rmw_w;
 wire [ACC_ROW_IDX_W-1:0]         s5_local_row0_w;
 wire [ACC_ROW_IDX_W-1:0]         s5_local_row1_w;
+wire                             active_task_final_s5_w;
 wire                             allow_active_start_acc_w;
 wire                             allow_active_start_w;
 
@@ -746,6 +762,10 @@ assign issue_weight_word_w =
     (mode_r == MODE_RUN) && active_task_valid_r && !weight_issue_done_r &&
     !s3_delay_r && !s3_pending_r && acc_ready_r && !acc_flush_hold_w;
 
+assign active_task_final_s5_w =
+    s5_valid_r && s5_last_weight_word_r && active_task_valid_r &&
+    weight_issue_done_r && queue_empty_w;
+
 // Overlap: promote next S2 task after last weight issue, without waiting for prior S4/S5 drain.
 assign allow_active_start_acc_w =
     acc_bypass_spad_rmw_w &&
@@ -753,6 +773,7 @@ assign allow_active_start_acc_w =
     s2_valid_r &&
     !s3_delay_r &&
     !s3_pending_r &&
+    !active_task_final_s5_w &&
     (!active_task_valid_r || weight_issue_done_r);
 
 assign allow_active_start_w =
@@ -761,14 +782,21 @@ assign allow_active_start_w =
      s2_valid_r && !active_task_valid_r && !s3_delay_r && !s3_pending_r &&
      !s4_valid_r && !s5_valid_r);
 
-assign s4_weight_row0_calc_w = s3_weight_first_word_r ?
-                               {{(PSUM_ADDR_W-WEIGHT_COUNT_W){1'b0}}, weight_lane0_count_w} :
-                               (s3_weight_row_base_r + {{(PSUM_ADDR_W-WEIGHT_COUNT_W){1'b0}}, weight_lane0_count_w});
+// Overlap promote: S2->active must read Address SPAD for s2_weight_col, not stale active col.
+assign weight_address_rd_col_idx_w =
+    allow_active_start_w ? s2_weight_col_r :
+    active_task_valid_r  ? active_weight_col_r :
+                           s2_weight_col_r;
+
+// Weight CSC: lane0_m = row_base + lane0_count; counts are continuous across the column.
+assign s4_weight_row0_calc_w =
+    s3_weight_row_base_r + {{(PSUM_ADDR_W-WEIGHT_COUNT_W){1'b0}}, weight_lane0_count_w};
 assign s4_weight_base_after_lane0_w = s4_weight_row0_calc_w + {{(PSUM_ADDR_W-1){1'b0}},1'b1};
 assign s4_weight_row1_calc_w = s4_weight_base_after_lane0_w + {{(PSUM_ADDR_W-WEIGHT_COUNT_W){1'b0}}, weight_lane1_count_w}; //Note
 assign s4_weight_next_base_w = weight_lane1_valid_w ?
                                (s4_weight_row1_calc_w + {{(PSUM_ADDR_W-1){1'b0}},1'b1}) :
                                s4_weight_base_after_lane0_w;
+// Sparse weight column: lane count fields decode filter-row offsets; PSUM row = task base + row.
 assign s4_psum_addr0_w       = s3_psum_base_r + s4_weight_row0_calc_w;
 assign s4_psum_addr1_w       = s3_psum_base_r + s4_weight_row1_calc_w;
 assign s4_last_weight_word_w = ((s3_weight_word_ptr_r + {{(WEIGHT_WORD_PTR_W-1){1'b0}},1'b1}) >= s3_weight_word_end_r);
@@ -818,7 +846,11 @@ assign frontend_done_w =
     iter_done_r && (wm_state_r == ST_IDLE) && itr_pipe_empty_w;
 
 assign queue_pop_w   = (mode_r == MODE_RUN) && !s2_valid_r && q0_valid_r;
-assign psum_out_w      = (mode_r == MODE_MERGE) ? ($signed(psum_spad_rd_data0_w) + $signed(psum_router_data_in)) : $signed({PSUM_W{1'b0}});
+assign psum_out_w = (mode_r == MODE_MERGE)
+    ? (merge_out_pending_r
+        ? merge_out_pending_data_r
+        : ($signed(psum_spad_rd_data0_w) + $signed(psum_router_data_in)))
+    : $signed({PSUM_W{1'b0}});
 assign queue_full_w  = q0_valid_r & q1_valid_r;
 assign queue_empty_w = ~q0_valid_r && ~q1_valid_r;
 
@@ -906,6 +938,8 @@ always @(posedge clk) begin
         psum_wr_data1_r <= {PSUM_W{1'b0}};
         psum_out_r <= {PSUM_W{1'b0}};
         psum_in_valid_r <= 1'b0;
+        merge_out_pending_r <= 1'b0;
+        merge_out_pending_data_r <= {PSUM_W{1'b0}};
 
         q0_valid_r               <= 1'b0;
         q1_valid_r               <= 1'b0;
@@ -1069,8 +1103,14 @@ always @(posedge clk) begin
         psum_wr_addr1_r       <= {PSUM_ADDR_W{1'b0}};
         psum_wr_data0_r       <= {PSUM_W{1'b0}};
         psum_wr_data1_r       <= {PSUM_W{1'b0}};
-        psum_out_r             <= psum_out_w;
-        psum_in_valid_r       <= psum_router_valid_in;
+        if (mode_r == MODE_MERGE && merge_out_pending_r)
+            psum_out_r <= merge_out_pending_data_r;
+        else
+            psum_out_r <= psum_out_w;
+        if (mode_r == MODE_MERGE && merge_out_pending_r)
+            psum_in_valid_r <= 1'b0;
+        else
+            psum_in_valid_r <= psum_router_valid_in;
 
         if (ctrl_cfg_psum_spad_clear_in) begin
             acc_phase_r        <= ACC_IDLE;
@@ -1183,6 +1223,7 @@ always @(posedge clk) begin
                 if (merge_req_pending_r && acc_mac_idle_w) begin
                     mode_r <= MODE_MERGE;
                     merge_idx_r <= {PSUM_ADDR_W{1'b0}};
+                    merge_out_pending_r <= 1'b0;
                     merge_req_pending_r <= 1'b0;
                     // Prefetch address 0 so first merge beat sees valid local psum data.
                     psum_rd_en0_r <= 1'b1;
@@ -1269,7 +1310,7 @@ always @(posedge clk) begin
                                 itr_rd_first_r <= 1'b1;
                                 itr_rd_offset_base_r <= {IACT_DATA_PTR_W{1'b0}};
                                 itr_rd_log_seg_r <= iter_logical_seg_base_r;
-                                itr_rd_psum_base_r <= window_psum_base_r;
+                                itr_rd_psum_base_r <= itr_window_psum_base_w;
                                 itr_rd_valid_r <= 1'b1;
                                 wm_state_r <= ST_ITER_PAYLOAD_WAIT;
                             end
@@ -1292,7 +1333,7 @@ always @(posedge clk) begin
                         end
                         ST_ITER_DECODE: begin
                             itr_dec_value_r <= itr_dec_val_w;
-                            itr_dec_weight_col_r <= itr_dec_log_col_w[WEIGHT_COL_IDX_W-1:0];
+                            itr_dec_weight_col_r <= itr_dec_full_weight_col_w;
                             itr_dec_psum_base_r <= itr_cap_psum_base_r;
                             itr_dec_offset_in_seg_r <= itr_dec_off_in_w;
                             itr_dec_skip_r <= itr_dec_skip_w;
@@ -1316,7 +1357,7 @@ always @(posedge clk) begin
                                         itr_rd_first_r <= 1'b0;
                                         itr_rd_offset_base_r <= sliding_resp_retire_offp1_r;
                                         itr_rd_log_seg_r <= iter_logical_seg_base_r;
-                                        itr_rd_psum_base_r <= window_psum_base_r;
+                                        itr_rd_psum_base_r <= itr_window_psum_base_w;
                                         itr_rd_valid_r <= 1'b1;
                                     end
                                 end
@@ -1334,7 +1375,7 @@ always @(posedge clk) begin
                                     itr_rd_first_r <= 1'b0;
                                     itr_rd_offset_base_r <= itr_dec_offset_in_seg_r + {{(IACT_DATA_PTR_W-1){1'b0}}, 1'b1};
                                     itr_rd_log_seg_r <= iter_logical_seg_base_r;
-                                    itr_rd_psum_base_r <= window_psum_base_r;
+                                    itr_rd_psum_base_r <= itr_window_psum_base_w;
                                     itr_rd_valid_r <= 1'b1;
                                 end
                             end else if (itr_dec_valid_r && !itr_dec_skip_r && !sliding_resp_valid_r) begin
@@ -1347,6 +1388,7 @@ always @(posedge clk) begin
                             end
                         end
                         ST_NEXT_SEG: begin
+                            itr_dec_valid_r <= 1'b0;
                             if ((iter_seg_rel_r + {{(IACT_SEG_IDX_W-1){1'b0}}, 1'b1}) >= current_window_seg_count_w) begin
                                 iter_active_r <= 1'b0;
                                 iter_done_r <= 1'b1;
@@ -1359,6 +1401,9 @@ always @(posedge clk) begin
                             end
                         end
                         ST_DONE: begin
+                            itr_dec_valid_r <= 1'b0;
+                            itr_cap_valid_r <= 1'b0;
+                            itr_rd_valid_r  <= 1'b0;
                             if (!sliding_iter_start_w)
                                 wm_state_r <= ST_IDLE;
                         end
@@ -1425,27 +1470,37 @@ always @(posedge clk) begin
                     acc_post_compute_flush_r   <= 1'b0;
                 end
 
-                if (s5_valid_r && s5_last_weight_word_r && active_task_valid_r &&
-                    weight_issue_done_r && queue_empty_w && !s2_valid_r) begin
+                // Retire the active task when its final issued weight word leaves
+                // S5. S2 promotion is deliberately held off for this cycle so the
+                // active task register is not retired and replaced at the same edge.
+                if (active_task_final_s5_w) begin
                     active_task_valid_r <= 1'b0;
                     weight_issue_done_r <= 1'b0;
                 end
             end
-            // increase merge_idx
+            // Merge: hold final output beat until downstream accepts (Phase 1X / S-B).
             MODE_MERGE: begin
-                psum_rd_en0_r   <= 1'b1;
-                // Keep read address aligned with the next handshake beat after prefetch.
-                psum_rd_addr0_r <= merge_idx_r
-                                 + (((psum_router_valid_in && psum_router_ready_in) && (merge_idx_r != ctrl_cfg_psum_depth_in))
-                                    ? {{(PSUM_ADDR_W-1){1'b0}},1'b1}
-                                    : {PSUM_ADDR_W{1'b0}});
-                if (psum_router_valid_in && psum_router_ready_in) begin
-                    if (merge_idx_r == ctrl_cfg_psum_depth_in) begin
-                        psum_acc_fin_r   <= 1'b1;
-                        mode_r           <= MODE_IDLE;
+                if (merge_out_pending_r) begin
+                    if (psum_router_ready_in) begin
+                        merge_out_pending_r <= 1'b0;
+                        psum_acc_fin_r      <= 1'b1;
+                        mode_r              <= MODE_IDLE;
                         merge_req_pending_r <= 1'b0;
-                    end else begin
-                        merge_idx_r <= merge_idx_r + {{(PSUM_ADDR_W-1){1'b0}},1'b1};
+                    end
+                end else begin
+                    psum_rd_en0_r   <= 1'b1;
+                    psum_rd_addr0_r <= merge_idx_r
+                                     + (((psum_router_valid_in && psum_router_ready_in) &&
+                                         (merge_idx_r != ctrl_cfg_psum_depth_in))
+                                        ? {{(PSUM_ADDR_W-1){1'b0}},1'b1}
+                                        : {PSUM_ADDR_W{1'b0}});
+                    if (psum_router_valid_in && psum_router_ready_in) begin
+                        if (merge_idx_r == ctrl_cfg_psum_depth_in) begin
+                            merge_out_pending_r      <= 1'b1;
+                            merge_out_pending_data_r <= psum_out_w;
+                        end else begin
+                            merge_idx_r <= merge_idx_r + {{(PSUM_ADDR_W-1){1'b0}},1'b1};
+                        end
                     end
                 end
             end
@@ -1541,6 +1596,5 @@ always @(posedge clk) begin
         end
     end
 end
-
 
 endmodule

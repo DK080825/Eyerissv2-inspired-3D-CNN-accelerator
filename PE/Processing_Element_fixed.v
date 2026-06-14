@@ -1,267 +1,248 @@
 // ====================================================================================================== //
 // Top-level PE wrapper around Processing_Element_core_pipeline.
-// Handles FIFO buffering, sticky write-finish tracking, controller sequencing,
-// and external streaming interfaces.
+// FIFO-backed router ports; load-phase pop gating; PSUM in/out decoupling.
+//
+// Production control contract (cluster/HMesh and PE TBs):
+//   cluster_ctrl_load_en_in       = FIFO/core load gate only
+//   cluster_ctrl_mac_en_in        = direct core MAC pulse
+//   cluster_ctrl_psum_enq_en_in   = merge request to controller (core sees controller accept only)
+//   ctrl_status_cal_fin_out       = core MAC completion
+//
+// Deprecated ports (kept for compile compat; ignored internally):
+//   cluster_ctrl_external_control_en_in — always production behavior
+//   cluster_ctrl_load_session_in        — no load-session / no load_en-rise auto-MAC
+//
+// Processing_Element_Controller: PSUM merge request tracking only (see controller file).
+// IACT FIFO pop: ~write_fin latch; also allow pop during slide_safe for row-slide append.
 // ====================================================================================================== //
 
 module Processing_Element (
-    input  wire                   clk,
-    input  wire                   rst,
+    input  wire                  clk,
+    input  wire                  rst,
 
-    output wire                   psum_router_ready_out,
-    input  wire                   psum_router_valid_in,
-    input  wire signed [20:0]     psum_router_data_in,
-    input  wire                   psum_router_ready_in,
-    output wire                   psum_router_valid_out,
-    output wire signed [20:0]     psum_router_data_out,
+    output wire                  psum_router_ready_out,
+    input  wire                  psum_router_valid_in,
+    input  wire signed [20:0]    psum_router_data_in,
+    input  wire                  psum_router_ready_in,
+    output wire                  psum_router_valid_out,
+    output wire signed [20:0]    psum_router_data_out,
 
-    output wire                   iact_router_addr_ready_out,
-    input  wire                   iact_router_addr_valid_in,
-    input  wire [7:0]             iact_router_addr_in,
+    output wire                  iact_router_addr_ready_out,
+    input  wire                  iact_router_addr_valid_in,
+    input  wire [4:0]            iact_router_addr_in,
 
-    output wire                   iact_router_data_ready_out,
-    input  wire                   iact_router_data_valid_in,
-    input  wire [12:0]            iact_router_data_in,
+    output wire                  iact_router_data_ready_out,
+    input  wire                  iact_router_data_valid_in,
+    input  wire [12:0]           iact_router_data_in,
 
-    output wire                   weight_router_addr_ready_out,
-    input  wire                   weight_router_addr_valid_in,
-    input  wire [6:0]             weight_router_addr_in,
+    output wire                  weight_router_addr_ready_out,
+    input  wire                  weight_router_addr_valid_in,
+    input  wire [6:0]            weight_router_addr_in,
 
-    output wire                   weight_router_data_ready_out,
-    input  wire                   weight_router_data_valid_in,
-    input  wire [23:0]            weight_router_data_in,
+    output wire                  weight_router_data_ready_out,
+    input  wire                  weight_router_data_valid_in,
+    input  wire [23:0]           weight_router_data_in,
 
-    output wire                   ctrl_status_iact_address_write_fin_out,
-    output wire                   ctrl_status_iact_data_write_fin_out,
-    output wire                   ctrl_status_weight_address_write_fin_out,
-    output wire                   ctrl_status_weight_data_write_fin_out,
-    output wire                   ctrl_status_psum_acc_fin_out,
-    output wire                   ctrl_status_slide_safe_out,
+    output wire                  ctrl_status_iact_address_write_fin_out,
+    output wire                  ctrl_status_iact_data_write_fin_out,
+    output wire                  ctrl_status_weight_address_write_fin_out,
+    output wire                  ctrl_status_weight_data_write_fin_out,
+    output wire                  ctrl_status_psum_acc_fin_out,
+    output wire                  ctrl_status_slide_safe_out,
 
-    input  wire                   cluster_ctrl_psum_enq_en_in,
-    input  wire                   cluster_ctrl_load_en_in,
-    output wire                   ctrl_status_cal_fin_out,
+    input  wire                  cluster_ctrl_external_control_en_in,
+    input  wire                  cluster_ctrl_psum_enq_en_in,
+    input  wire                  cluster_ctrl_psum_passthrough_en_in,
+    input  wire                  cluster_ctrl_load_en_in,
+    input  wire                  cluster_ctrl_load_session_in,
+    input  wire                  cluster_ctrl_mac_en_in,
+    output wire                  ctrl_status_cal_fin_out,
 
-    input  wire                   iact_write_fin_clear,
-    input  wire                   weight_write_fin_clear,
-    output wire                   all_write_fin,
-    output wire 
+    input  wire                  iact_write_fin_clear,
+    input  wire                  weight_write_fin_clear,
+    output wire                  all_write_fin,
 
-    input  wire [4:0]             ctrl_cfg_psum_depth_in,
-    input  wire                   psum_spad_clear,
+    input  wire [4:0]            ctrl_cfg_psum_depth_in,
+    input  wire                  psum_spad_clear,
 
-    input  wire [4:0]             ctrl_cfg_window_size_in,
-    input  wire [4:0]             ctrl_cfg_segment_len_in,
-    input  wire [3:0]             ctrl_cfg_window_seg_count_in,
-    input  wire [4:0]             ctrl_cfg_psum_base_in,
-    input  wire [5:0]             ctrl_cfg_m0_in,
-    input  wire                   ctrl_cfg_iact_flush_in,
-    input  wire                   ctrl_cfg_slide_commit_in,
+    input  wire [4:0]            ctrl_cfg_window_size_in,
+    input  wire [4:0]            ctrl_cfg_segment_len_in,
+    input  wire [3:0]            ctrl_cfg_window_seg_count_in,
+    input  wire [4:0]            ctrl_cfg_psum_base_in,
+    input  wire [5:0]            ctrl_cfg_m0_in,
+    input  wire                  ctrl_cfg_iact_flush_in,
+    input  wire                  ctrl_cfg_slide_commit_in,
 
-    input  wire                   cluster_ctrl_pool_cmp_en_in,
-    input  wire                   cluster_ctrl_pool_cmp_stop_in,
-    input  wire                   pool_router_elem_valid_in,
-    output wire                   pool_router_elem_ready_out,
-    input  wire signed [7:0]      pool_router_elem_data_in,
-    input  wire                   pool_router_win_first_in,
-    input  wire                   pool_router_win_last_in,
-    output wire                   pool_router_out_valid_out,
-    input  wire                   pool_router_out_ready_in,
-    output wire signed [7:0]      pool_router_out_data_out
+    input  wire                  cluster_ctrl_pool_cmp_en_in,
+    input  wire                  cluster_ctrl_pool_cmp_stop_in,
+    input  wire                  pool_router_elem_valid_in,
+    output wire                  pool_router_elem_ready_out,
+    input  wire signed [7:0]     pool_router_elem_data_in,
+    input  wire                  pool_router_win_first_in,
+    input  wire                  pool_router_win_last_in,
+    output wire                  pool_router_out_valid_out,
+    input  wire                  pool_router_out_ready_in,
+    output wire signed [7:0]     pool_router_out_data_out
 );
 
-//
-// ==================================================================== //
-//                              Parameters                              //
-// ==================================================================== //
-//
-parameter IACT_ADDR_DATA_WIDTH   = 8;    // iact address width
-parameter IACT_DATA_DATA_WIDTH   = 13;   // iact data = 8-bit value + 5-bit count
-parameter WEIGHT_ADDR_DATA_WIDTH = 7;    // weight address width
-parameter WEIGHT_DATA_DATA_WIDTH = 24;   // packed 2-lane weight word
+parameter integer IACT_ADDR_DATA_WIDTH   = 5;
+parameter integer IACT_DATA_DATA_WIDTH   = 13;
+parameter integer WEIGHT_ADDR_DATA_WIDTH  = 7;
+parameter integer WEIGHT_DATA_DATA_WIDTH  = 24;
 
-//
-// ==================================================================== //
-//                              Wires                                   //
-// ==================================================================== //
-//
+wire psum_router_ready_core_w;
+wire psum_router_valid_core_w;
+wire signed [20:0] psum_router_data_core_w;
+wire psum_merge_out_pending_w;
 
-// ------------------------------------
-// PE ctrl module
-// ------------------------------------
-// signal to controller
-wire                core_ctrl_status_psum_acc_fin_w;
-wire                ctr_cluster_ctrl_mac_en_w;
-wire                ctr_cluster_ctrl_psum_enq_en_w;
-wire                ctr_cluster_ctrl_load_en_w;
-wire                core_ctrl_status_cal_fin_w;
-wire                top_psum_enq_en_w;
-wire                top_do_load_en_w;
-wire                top_cal_fin_w;
-wire                top_all_write_fin_w;
+wire iact_addr_valid_w;
+wire iact_addr_ready_w;
+wire [4:0] iact_addr_data_w;
 
-// ------------------------------------
-// PE core module
-// ------------------------------------
-wire                core_ctrl_status_slide_safe_w;
-wire                core_psum_router_ready_w;
-wire                core_psum_router_valid_in_w;
-wire signed [20:0]  core_psum_router_data_in_w;
-wire                core_psum_router_ready_in_w;
-wire                core_psum_router_valid_out_w;
-wire signed [20:0]  core_psum_router_data_out_w;
-wire                core_pool_router_elem_ready_w;
-wire                core_pool_router_out_valid_w;
-wire signed [7:0]   core_pool_router_out_data_w;
+wire iact_data_valid_w;
+wire iact_data_ready_w;
+wire [12:0] iact_data_data_w;
 
-wire                core_iact_router_addr_valid_w;
-wire        [7:0]   core_iact_router_addr_w;
-wire                core_iact_router_addr_ready_w;
-wire                core_iact_router_data_valid_w;
-wire        [12:0]  core_iact_router_data_w;
-wire                core_iact_router_data_ready_w;
+wire weight_addr_valid_w;
+wire weight_addr_ready_w;
+wire [6:0] weight_addr_data_w;
 
-wire                core_weight_router_addr_valid_w;
-wire        [7:0]   core_weight_router_addr_w;
-wire                core_weight_router_addr_ready_w;
-wire                core_weight_router_data_valid_w;
-wire        [23:0]  core_weight_router_data_w;
-wire                core_weight_router_data_ready_w;
+wire weight_data_valid_w;
+wire weight_data_ready_w;
+wire [23:0] weight_data_data_w;
 
-wire                core_ctrl_status_iact_address_write_fin_w;
-wire                core_ctrl_status_iact_data_write_fin_w;
-wire                core_ctrl_status_weight_address_write_fin_w;
-wire                core_ctrl_status_weight_data_write_fin_w;
-wire                core_ctrl_status_psum_acc_fin_w;
+wire ctrl_status_iact_address_write_fin_w;
+wire ctrl_status_iact_data_write_fin_w;
+wire ctrl_status_weight_address_write_fin_w;
+wire ctrl_status_weight_data_write_fin_w;
+wire ctrl_status_psum_acc_fin_w;
+wire ctrl_status_slide_safe_w;
+wire ctrl_status_cal_fin_w;
 
-// ------------------------------------
-// FIFO - iact address
-// ------------------------------------
-wire                FIFO_iact_address_in_ready;
-wire                FIFO_iact_address_in_valid;
-wire        [7:0]   FIFO_iact_address_in;
-wire                FIFO_iact_address_out_ready;
-wire                FIFO_iact_address_out_valid;
-wire        [7:0]   FIFO_iact_address_out;
+wire core_pool_elem_ready_w;
+wire core_pool_out_valid_w;
+wire signed [7:0] core_pool_out_data_w;
 
-// ------------------------------------
-// FIFO - iact data
-// ------------------------------------
-wire                FIFO_iact_data_in_ready;
-wire                FIFO_iact_data_in_valid;
-wire        [12:0]  FIFO_iact_data_in;
-wire                FIFO_iact_data_out_ready;
-wire                FIFO_iact_data_out_valid;
-wire        [12:0]  FIFO_iact_data_out;
-
-// ------------------------------------
-// FIFO - weight address
-// ------------------------------------
-wire                FIFO_weight_address_in_ready;
-wire                FIFO_weight_address_in_valid;
-wire        [6:0]   FIFO_weight_address_in;
-wire                FIFO_weight_address_out_ready;
-wire                FIFO_weight_address_out_valid;
-wire        [6:0]   FIFO_weight_address_out;
-
-// ------------------------------------
-// FIFO - weight data
-// ------------------------------------
-wire                FIFO_weight_data_in_ready;
-wire                FIFO_weight_data_in_valid;
-wire        [23:0]  FIFO_weight_data_in;
-wire                FIFO_weight_data_out_ready;
-wire                FIFO_weight_data_out_valid;
-wire        [23:0]  FIFO_weight_data_out;
-
-// ------------------------------------
-// FIFO - psum in
-// ------------------------------------
-wire                FIFO_in_psum_in_ready;
-wire                FIFO_in_psum_in_valid;
-wire signed [20:0]  FIFO_in_psum_in;
-wire                FIFO_in_psum_out_ready;
-wire                FIFO_in_psum_out_valid;
-wire signed [20:0]  FIFO_in_psum_out;
-
-// ------------------------------------
-// FIFO - psum out
-// ------------------------------------
-wire                FIFO_out_psum_in_ready;
-wire                FIFO_out_psum_in_valid;
-wire signed [20:0]  FIFO_out_psum_in;
-wire                FIFO_out_psum_out_ready;
-wire                FIFO_out_psum_out_valid;
-wire signed [20:0]  FIFO_out_psum_out;
-
-//
-// ==================================================================== //
-//                              Registers                               //
-// ==================================================================== //
-//
 reg iact_addr_write_fin_r;
 reg iact_data_write_fin_r;
 reg weight_addr_write_fin_r;
 reg weight_data_write_fin_r;
 
-//
-// ==================================================================== //
-//                              Instantiation                           //
-// ==================================================================== //
-//
+wire top_psum_enq_en_w;
+wire cluster_ctrl_psum_enq_en_w;
+wire cluster_ctrl_psum_enq_core_w;
 
-// ------------------------------------
-// PE controller
-// ------------------------------------
-Processing_Element_Controller Processing_Element_Controller_inst (
-    .clk                          (clk),
-    .rst                          (rst),
-    .top_psum_enq_en_in             (top_psum_enq_en_w),
-    .top_do_load_en_in              (top_do_load_en_w),
-    .core_ctrl_status_cal_fin_in    (core_ctrl_status_cal_fin_w),
-    .core_ctrl_status_psum_acc_fin_in (core_ctrl_status_psum_acc_fin_w),
-    .top_all_write_fin_in           (top_all_write_fin_w),
-    .cluster_ctrl_mac_en_out        (ctr_cluster_ctrl_mac_en_w),
-    .cluster_ctrl_psum_enq_en_out   (ctr_cluster_ctrl_psum_enq_en_w),
-    .cluster_ctrl_load_en_out       (ctr_cluster_ctrl_load_en_w),
-    .top_cal_fin_out                (top_cal_fin_w)
-);
+wire fifo_iact_addr_in_ready_w;
+wire fifo_iact_addr_in_valid_w;
+wire [4:0] fifo_iact_addr_in_w;
+wire fifo_iact_addr_out_ready_w;
+wire fifo_iact_addr_out_valid_w;
+wire [4:0] fifo_iact_addr_out_w;
 
-// ------------------------------------
-// PE core
-// ------------------------------------
-Processing_Element_core_pipeline Processing_Element_core_inst (
+wire fifo_iact_data_in_ready_w;
+wire fifo_iact_data_in_valid_w;
+wire [12:0] fifo_iact_data_in_w;
+wire fifo_iact_data_out_ready_w;
+wire fifo_iact_data_out_valid_w;
+wire [12:0] fifo_iact_data_out_w;
+
+wire fifo_weight_addr_in_ready_w;
+wire fifo_weight_addr_in_valid_w;
+wire [6:0] fifo_weight_addr_in_w;
+wire fifo_weight_addr_out_ready_w;
+wire fifo_weight_addr_out_valid_w;
+wire [6:0] fifo_weight_addr_out_w;
+
+wire fifo_weight_data_in_ready_w;
+wire fifo_weight_data_in_valid_w;
+wire [23:0] fifo_weight_data_in_w;
+wire fifo_weight_data_out_ready_w;
+wire fifo_weight_data_out_valid_w;
+wire [23:0] fifo_weight_data_out_w;
+
+wire fifo_psum_in_in_ready_w;
+wire fifo_psum_in_in_valid_w;
+wire signed [20:0] fifo_psum_in_in_w;
+wire fifo_psum_in_out_ready_w;
+wire fifo_psum_in_out_valid_w;
+wire signed [20:0] fifo_psum_in_out_w;
+
+wire fifo_psum_out_fifo_in_ready_w;
+wire fifo_psum_out_core_ready_w;
+wire fifo_psum_out_in_valid_w;
+wire signed [20:0] fifo_psum_out_in_w;
+wire fifo_psum_out_out_ready_w;
+wire fifo_psum_out_out_valid_w;
+wire signed [20:0] fifo_psum_out_out_w;
+wire psum_passthrough_w;
+
+assign psum_passthrough_w = cluster_ctrl_psum_passthrough_en_in;
+assign top_psum_enq_en_w = cluster_ctrl_psum_enq_en_in;
+// Merge starts reach core only via controller accept (no top bypass).
+assign cluster_ctrl_psum_enq_core_w = cluster_ctrl_psum_enq_en_w;
+
+assign all_write_fin = iact_addr_write_fin_r & iact_data_write_fin_r &
+                       weight_addr_write_fin_r & weight_data_write_fin_r;
+assign ctrl_status_iact_address_write_fin_out = iact_addr_write_fin_r;
+assign ctrl_status_iact_data_write_fin_out    = iact_data_write_fin_r;
+assign ctrl_status_weight_address_write_fin_out = weight_addr_write_fin_r;
+assign ctrl_status_weight_data_write_fin_out  = weight_data_write_fin_r;
+assign ctrl_status_psum_acc_fin_out           = ctrl_status_psum_acc_fin_w;
+assign ctrl_status_slide_safe_out             = ctrl_status_slide_safe_w;
+assign ctrl_status_cal_fin_out = ctrl_status_cal_fin_w;
+
+// P0/P1: PSUM paths through FIFOs (no top-level bypass unless passthrough enabled).
+// Safety rule: psum_passthrough_en_in may only change at tile/session boundaries.
+// No PSUM transaction may be in flight when toggling the bypass mode.
+assign psum_router_ready_out   = psum_passthrough_w ? psum_router_ready_in : fifo_psum_in_in_ready_w;
+assign psum_router_valid_out   = psum_passthrough_w ? psum_router_valid_in  : fifo_psum_out_out_valid_w;
+assign psum_router_data_out    = psum_passthrough_w ? psum_router_data_in   : fifo_psum_out_out_w;
+
+assign pool_router_elem_ready_out = core_pool_elem_ready_w;
+assign pool_router_out_valid_out  = core_pool_out_valid_w;
+assign pool_router_out_data_out   = core_pool_out_data_w;
+
+Processing_Element_Controller u_processing_element_controller (
     .clk                               (clk),
     .rst                               (rst),
-    .psum_router_ready_out             (core_psum_router_ready_w),
-    .psum_router_valid_in              (core_psum_router_valid_in_w),
-    .psum_router_data_in               (core_psum_router_data_in_w),
-    .psum_router_ready_in              (core_psum_router_ready_in_w),
-    .psum_router_valid_out             (core_psum_router_valid_out_w),
-    .psum_router_data_out              (core_psum_router_data_out_w),
-    .iact_router_addr_valid_in         (core_iact_router_addr_valid_w),
-    .iact_router_addr_in               (core_iact_router_addr_w),
-    .iact_router_addr_ready_out        (core_iact_router_addr_ready_w),
-    .iact_router_data_valid_in         (core_iact_router_data_valid_w),
-    .iact_router_data_in               (core_iact_router_data_w),
-    .iact_router_data_ready_out        (core_iact_router_data_ready_w),
-    .weight_router_addr_valid_in       (core_weight_router_addr_valid_w),
-    .weight_router_addr_in             (core_weight_router_addr_w),
-    .weight_router_addr_ready_out      (core_weight_router_addr_ready_w),
-    .weight_router_data_valid_in       (core_weight_router_data_valid_w),
-    .weight_router_data_in             (core_weight_router_data_w),
-    .weight_router_data_ready_out      (core_weight_router_data_ready_w),
-    .cluster_ctrl_mac_en_in            (ctr_cluster_ctrl_mac_en_w),
-    .cluster_ctrl_psum_enq_en_in       (ctr_cluster_ctrl_psum_enq_en_w),
-    .cluster_ctrl_load_en_in           (ctr_cluster_ctrl_load_en_w),
-    .ctrl_status_cal_fin_out           (core_ctrl_status_cal_fin_w),
-    .ctrl_status_slide_safe_out        (core_ctrl_status_slide_safe_w),
-    .ctrl_status_iact_address_write_fin_out (core_ctrl_status_iact_address_write_fin_w),
-    .ctrl_status_iact_data_write_fin_out    (core_ctrl_status_iact_data_write_fin_w),
-    .ctrl_status_weight_address_write_fin_out (core_ctrl_status_weight_address_write_fin_w),
-    .ctrl_status_weight_data_write_fin_out    (core_ctrl_status_weight_data_write_fin_w),
-    .ctrl_status_psum_acc_fin_out      (core_ctrl_status_psum_acc_fin_in_w),
-    .ctrl_cfg_psum_depth_in            (PSUM_DEPTH),
+    .top_psum_enq_en_in                (top_psum_enq_en_w),
+    .core_ctrl_status_psum_acc_fin_in  (ctrl_status_psum_acc_fin_w),
+    .cluster_ctrl_psum_enq_en_out      (cluster_ctrl_psum_enq_en_w)
+);
+
+Processing_Element_core_pipeline u_processing_element_core_pipeline (
+    .clk                               (clk),
+    .rst                               (rst),
+    .psum_router_ready_out             (psum_router_ready_core_w),
+    .psum_router_valid_in              (fifo_psum_in_out_valid_w),
+    .psum_router_data_in               (fifo_psum_in_out_w),
+    .psum_router_ready_in              (fifo_psum_out_core_ready_w),
+    .psum_router_valid_out             (psum_router_valid_core_w),
+    .psum_router_data_out              (psum_router_data_core_w),
+    .psum_merge_out_pending_out        (psum_merge_out_pending_w),
+    .iact_router_addr_valid_in         (iact_addr_valid_w),
+    .iact_router_addr_in               (iact_addr_data_w),
+    .iact_router_addr_ready_out        (iact_addr_ready_w),
+    .iact_router_data_valid_in         (iact_data_valid_w),
+    .iact_router_data_in               (iact_data_data_w),
+    .iact_router_data_ready_out        (iact_data_ready_w),
+    .weight_router_addr_valid_in       (weight_addr_valid_w),
+    .weight_router_addr_in             (weight_addr_data_w),
+    .weight_router_addr_ready_out      (weight_addr_ready_w),
+    .weight_router_data_valid_in       (weight_data_valid_w),
+    .weight_router_data_in             (weight_data_data_w),
+    .weight_router_data_ready_out      (weight_data_ready_w),
+    .cluster_ctrl_mac_en_in            (cluster_ctrl_mac_en_in),
+    .cluster_ctrl_psum_enq_en_in       (cluster_ctrl_psum_enq_core_w),
+    .cluster_ctrl_load_en_in           (cluster_ctrl_load_en_in),
+    .ctrl_status_cal_fin_out           (ctrl_status_cal_fin_w),
+    .ctrl_status_slide_safe_out        (ctrl_status_slide_safe_w),
+    .ctrl_status_iact_address_write_fin_out (ctrl_status_iact_address_write_fin_w),
+    .ctrl_status_iact_data_write_fin_out    (ctrl_status_iact_data_write_fin_w),
+    .ctrl_status_weight_address_write_fin_out (ctrl_status_weight_address_write_fin_w),
+    .ctrl_status_weight_data_write_fin_out    (ctrl_status_weight_data_write_fin_w),
+    .ctrl_status_psum_acc_fin_out      (ctrl_status_psum_acc_fin_w),
+    .ctrl_cfg_psum_depth_in            (ctrl_cfg_psum_depth_in),
     .ctrl_cfg_psum_spad_clear_in       (psum_spad_clear),
     .ctrl_cfg_window_size_in           (ctrl_cfg_window_size_in),
     .ctrl_cfg_segment_len_in           (ctrl_cfg_segment_len_in),
@@ -270,199 +251,165 @@ Processing_Element_core_pipeline Processing_Element_core_inst (
     .ctrl_cfg_m0_in                    (ctrl_cfg_m0_in),
     .ctrl_cfg_iact_flush_in            (ctrl_cfg_iact_flush_in),
     .ctrl_cfg_slide_commit_in          (ctrl_cfg_slide_commit_in),
-    .cluster_ctrl_pool_cmp_en_in       (pool_cmp_en),
-    .cluster_ctrl_pool_cmp_stop_in     (pool_cmp_stop),
-    .pool_router_elem_valid_in         (pool_elem_in_valid),
-    .pool_router_elem_ready_out        (core_pool_router_elem_ready_w),
-    .pool_router_elem_data_in          (pool_elem_in),
-    .pool_router_win_first_in          (pool_win_first),
-    .pool_router_win_last_in           (pool_win_last),
-    .pool_router_out_valid_out         (core_pool_router_out_valid_w),
-    .pool_router_out_ready_in          (pool_out_ready),
-    .pool_router_out_data_out          (core_pool_router_out_data_w)
+    .cluster_ctrl_pool_cmp_en_in       (cluster_ctrl_pool_cmp_en_in),
+    .cluster_ctrl_pool_cmp_stop_in     (cluster_ctrl_pool_cmp_stop_in),
+    .pool_router_elem_valid_in         (pool_router_elem_valid_in),
+    .pool_router_elem_ready_out        (core_pool_elem_ready_w),
+    .pool_router_elem_data_in          (pool_router_elem_data_in),
+    .pool_router_win_first_in          (pool_router_win_first_in),
+    .pool_router_win_last_in           (pool_router_win_last_in),
+    .pool_router_out_valid_out         (core_pool_out_valid_w),
+    .pool_router_out_ready_in          (pool_router_out_ready_in),
+    .pool_router_out_data_out          (core_pool_out_data_w)
 );
 
-// ------------------------------------
-// FIFO for iact address
-// ------------------------------------
-PE_data_FIFO #(
-    .DATA_IN_WIDTH(IACT_ADDR_DATA_WIDTH)
-) iact_addr_FIFO (
+PE_data_FIFO #(.DATA_IN_WIDTH(IACT_ADDR_DATA_WIDTH)) u_iact_addr_fifo (
     .clk            (clk),
     .rst            (rst),
-    .data_in_ready  (FIFO_iact_address_in_ready),
-    .data_in_valid  (FIFO_iact_address_in_valid),
-    .data_in        (FIFO_iact_address_in),
-    .data_out_ready (FIFO_iact_address_out_ready),
-    .data_out_valid (FIFO_iact_address_out_valid),
-    .data_out       (FIFO_iact_address_out)
+    .data_in_ready  (fifo_iact_addr_in_ready_w),
+    .data_in_valid  (fifo_iact_addr_in_valid_w),
+    .data_in        (fifo_iact_addr_in_w),
+    .data_out_ready (fifo_iact_addr_out_ready_w),
+    .data_out_valid (fifo_iact_addr_out_valid_w),
+    .data_out       (fifo_iact_addr_out_w)
 );
 
-// ------------------------------------
-// FIFO for iact data
-// ------------------------------------
-PE_data_FIFO #(
-    .DATA_IN_WIDTH(IACT_DATA_DATA_WIDTH)
-) iact_data_FIFO (
+PE_data_FIFO #(.DATA_IN_WIDTH(IACT_DATA_DATA_WIDTH)) u_iact_data_fifo (
     .clk            (clk),
     .rst            (rst),
-    .data_in_ready  (FIFO_iact_data_in_ready),
-    .data_in_valid  (FIFO_iact_data_in_valid),
-    .data_in        (FIFO_iact_data_in),
-    .data_out_ready (FIFO_iact_data_out_ready),
-    .data_out_valid (FIFO_iact_data_out_valid),
-    .data_out       (FIFO_iact_data_out)
+    .data_in_ready  (fifo_iact_data_in_ready_w),
+    .data_in_valid  (fifo_iact_data_in_valid_w),
+    .data_in        (fifo_iact_data_in_w),
+    .data_out_ready (fifo_iact_data_out_ready_w),
+    .data_out_valid (fifo_iact_data_out_valid_w),
+    .data_out       (fifo_iact_data_out_w)
 );
 
-// ------------------------------------
-// FIFO for weight address
-// ------------------------------------
-PE_data_FIFO #(
-    .DATA_IN_WIDTH(WEIGHT_ADDR_DATA_WIDTH)
-) weight_addr_FIFO (
+PE_data_FIFO #(.DATA_IN_WIDTH(WEIGHT_ADDR_DATA_WIDTH)) u_weight_addr_fifo (
     .clk            (clk),
     .rst            (rst),
-    .data_in_ready  (FIFO_weight_address_in_ready),
-    .data_in_valid  (FIFO_weight_address_in_valid),
-    .data_in        (FIFO_weight_address_in),
-    .data_out_ready (FIFO_weight_address_out_ready),
-    .data_out_valid (FIFO_weight_address_out_valid),
-    .data_out       (FIFO_weight_address_out)
+    .data_in_ready  (fifo_weight_addr_in_ready_w),
+    .data_in_valid  (fifo_weight_addr_in_valid_w),
+    .data_in        (fifo_weight_addr_in_w),
+    .data_out_ready (fifo_weight_addr_out_ready_w),
+    .data_out_valid (fifo_weight_addr_out_valid_w),
+    .data_out       (fifo_weight_addr_out_w)
 );
 
-// ------------------------------------
-// FIFO for weight data
-// ------------------------------------
-PE_data_FIFO #(
-    .DATA_IN_WIDTH(WEIGHT_DATA_DATA_WIDTH)
-) weight_data_FIFO (
+PE_data_FIFO #(.DATA_IN_WIDTH(WEIGHT_DATA_DATA_WIDTH)) u_weight_data_fifo (
     .clk            (clk),
     .rst            (rst),
-    .data_in_ready  (FIFO_weight_data_in_ready),
-    .data_in_valid  (FIFO_weight_data_in_valid),
-    .data_in        (FIFO_weight_data_in),
-    .data_out_ready (FIFO_weight_data_out_ready),
-    .data_out_valid (FIFO_weight_data_out_valid),
-    .data_out       (FIFO_weight_data_out)
+    .data_in_ready  (fifo_weight_data_in_ready_w),
+    .data_in_valid  (fifo_weight_data_in_valid_w),
+    .data_in        (fifo_weight_data_in_w),
+    .data_out_ready (fifo_weight_data_out_ready_w),
+    .data_out_valid (fifo_weight_data_out_valid_w),
+    .data_out       (fifo_weight_data_out_w)
 );
 
-// ------------------------------------
-// FIFO for psum in
-// ------------------------------------
-PE_psum_FIFO psum_in_FIFO (
+PE_psum_FIFO u_psum_in_fifo (
     .clk            (clk),
     .rst            (rst),
-    .data_in_ready  (FIFO_in_psum_in_ready),
-    .data_in_valid  (FIFO_in_psum_in_valid),
-    .data_in        (FIFO_in_psum_in),
-    .data_out_ready (FIFO_in_psum_out_ready),
-    .data_out_valid (FIFO_in_psum_out_valid),
-    .data_out       (FIFO_in_psum_out)
+    .data_in_ready  (fifo_psum_in_in_ready_w),
+    .data_in_valid  (fifo_psum_in_in_valid_w),
+    .data_in        (fifo_psum_in_in_w),
+    .data_out_ready (fifo_psum_in_out_ready_w),
+    .data_out_valid (fifo_psum_in_out_valid_w),
+    .data_out       (fifo_psum_in_out_w)
 );
 
-// ------------------------------------
-// FIFO for psum out
-// ------------------------------------
-PE_psum_FIFO psum_out_FIFO (
+PE_psum_FIFO #(
+    .BUFFER_DEPTH(16)
+) u_psum_out_fifo (
     .clk            (clk),
     .rst            (rst),
-    .data_in_ready  (FIFO_out_psum_in_ready),
-    .data_in_valid  (FIFO_out_psum_in_valid),
-    .data_in        (FIFO_out_psum_in),
-    .data_out_ready (FIFO_out_psum_out_ready),
-    .data_out_valid (FIFO_out_psum_out_valid),
-    .data_out       (FIFO_out_psum_out)
+    .data_in_ready  (fifo_psum_out_fifo_in_ready_w),
+    .data_in_valid  (fifo_psum_out_in_valid_w),
+    .data_in        (fifo_psum_out_in_w),
+    .data_out_ready (fifo_psum_out_out_ready_w),
+    .data_out_valid (fifo_psum_out_out_valid_w),
+    .data_out       (fifo_psum_out_out_w)
 );
 
-//
-// ==================================================================== //
-//                              Combinational                           //
-// ==================================================================== //
-//
+// P1/P2: IACT ingress ready = FIFO input ready; pop only during active load before write_fin latch.
+// Allow pop while slide_safe so row-slide append can stream after a latched write_fin.
+wire iact_fifo_pop_allow_w =
+    (~iact_addr_write_fin_r) | ctrl_status_slide_safe_w;
+assign fifo_iact_addr_in_valid_w  = iact_router_addr_valid_in;
+assign fifo_iact_addr_in_w        = iact_router_addr_in;
+assign iact_router_addr_ready_out = fifo_iact_addr_in_ready_w;
+assign iact_addr_valid_w          = fifo_iact_addr_out_valid_w;
+assign iact_addr_data_w           = fifo_iact_addr_out_w;
+assign fifo_iact_addr_out_ready_w = cluster_ctrl_load_en_in & iact_fifo_pop_allow_w &
+                                    iact_addr_ready_w;
 
-// ------------------------------------
-// top-level outputs
-// ------------------------------------
+assign fifo_iact_data_in_valid_w  = iact_router_data_valid_in;
+assign fifo_iact_data_in_w        = iact_router_data_in;
+assign iact_router_data_ready_out = fifo_iact_data_in_ready_w;
+assign iact_data_valid_w          = fifo_iact_data_out_valid_w;
+assign iact_data_data_w           = fifo_iact_data_out_w;
+assign fifo_iact_data_out_ready_w = cluster_ctrl_load_en_in & iact_fifo_pop_allow_w &
+                                    iact_data_ready_w;
 
+// P1/P2: Weight ingress backpressure + load-phase pop gating.
+assign fifo_weight_addr_in_valid_w  = weight_router_addr_valid_in;
+assign fifo_weight_addr_in_w        = weight_router_addr_in;
+assign weight_router_addr_ready_out = fifo_weight_addr_in_ready_w;
+assign weight_addr_valid_w          = fifo_weight_addr_out_valid_w;
+assign weight_addr_data_w           = fifo_weight_addr_out_w;
+assign fifo_weight_addr_out_ready_w = cluster_ctrl_load_en_in & (~weight_addr_write_fin_r) &
+                                      weight_addr_ready_w;
 
-assign all_write_fin           = iact_addr_write_fin_r & iact_data_write_fin_r &
-                                  weight_addr_write_fin_r & weight_data_write_fin_r;
-assign psum_in_ready            = FIFO_in_psum_in_ready;
-assign psum_out_valid           = FIFO_out_psum_out_valid;
-assign psum_out                 = FIFO_out_psum_out;
-assign iact_address_in_ready    = FIFO_iact_address_in_ready;
-assign iact_data_in_ready       = FIFO_iact_data_in_ready;
-assign weight_address_in_ready  = FIFO_weight_address_in_ready;
-assign weight_data_in_ready     = FIFO_weight_data_in_ready;
-assign iact_address_write_fin   = iact_addr_write_fin_r;
-assign iact_data_write_fin      = iact_data_write_fin_r;
-assign weight_address_write_fin = weight_addr_write_fin_r;
-assign weight_data_write_fin    = weight_data_write_fin_r;
-assign psum_add_fin             = core_ctrl_status_psum_acc_fin_w;
-assign cal_fin                  = top_cal_fin_w;
-assign pool_elem_in_ready       = core_pool_router_elem_ready_w;
-assign pool_out_valid           = core_pool_router_out_valid_w;
-assign pool_out                 = core_pool_router_out_data_w;
-assign ctrl_status_slide_safe_out = core_ctrl_status_slide_safe_w;
+assign fifo_weight_data_in_valid_w  = weight_router_data_valid_in;
+assign fifo_weight_data_in_w        = weight_router_data_in;
+assign weight_router_data_ready_out = fifo_weight_data_in_ready_w;
+assign weight_data_valid_w          = fifo_weight_data_out_valid_w;
+assign weight_data_data_w           = fifo_weight_data_out_w;
+assign fifo_weight_data_out_ready_w = cluster_ctrl_load_en_in & (~weight_data_write_fin_r) &
+                                      weight_data_ready_w;
 
-// ------------------------------------
-// controller connections
-// ------------------------------------
-// add signal to controller
-assign top_psum_enq_en_w   = psum_enq_en;
-assign top_do_load_en_w    = do_load_en;
-assign top_all_write_fin_w = all_write_fin;
+// P1: PSUM in — top ready from FIFO in; core pop when core ready.
+assign fifo_psum_in_in_valid_w  = psum_passthrough_w ? 1'b0 : psum_router_valid_in;
+assign fifo_psum_in_in_w        = psum_router_data_in;
+assign fifo_psum_in_out_ready_w = psum_passthrough_w ? 1'b0 : psum_router_ready_core_w;
 
-assign core_psum_router_valid_in_w  = FIFO_in_psum_out_valid;
-assign core_psum_router_data_in_w   = FIFO_in_psum_out;
-assign FIFO_in_psum_out_ready       = core_psum_router_ready_w;
-assign FIFO_out_psum_in_valid       = core_psum_router_valid_out_w;
-assign FIFO_out_psum_in             = core_psum_router_data_out_w;
-assign core_psum_router_ready_in_w  = FIFO_out_psum_out_ready;
-
-assign core_iact_router_addr_valid_w = FIFO_iact_address_out_valid;
-assign core_iact_router_addr_w       = FIFO_iact_address_out;
-assign FIFO_iact_address_out_ready   = core_iact_router_addr_ready_w;
-assign core_iact_router_data_valid_w  = FIFO_iact_data_out_valid;
-assign core_iact_router_data_w        = FIFO_iact_data_out;
-assign FIFO_iact_data_out_ready      = core_iact_router_data_ready_w;
-
-assign core_weight_router_addr_valid_w = FIFO_weight_address_out_valid;
-assign core_weight_router_addr_w       = FIFO_weight_address_out;
-assign FIFO_weight_address_out_ready   = core_weight_router_addr_ready_w;
-assign core_weight_router_data_valid_w  = FIFO_weight_data_out_valid;
-assign core_weight_router_data_w        = FIFO_weight_data_out;
-assign FIFO_weight_data_out_ready      = core_weight_router_data_ready_w;
-
-//
-// ==================================================================== //
-//                              Sequential                              //
-// ==================================================================== //
-//
+// P0: PSUM out — core -> fifo in; top <- fifo out; downstream ready -> fifo out pop.
+// Core merge backpressure must wait for downstream pop when FIFO holds a beat (not ~full alone).
+assign fifo_psum_out_in_valid_w  = psum_passthrough_w ? 1'b0 : psum_router_valid_core_w;
+assign fifo_psum_out_in_w        = psum_router_data_core_w;
+assign fifo_psum_out_out_ready_w = psum_passthrough_w ? 1'b0 : psum_router_ready_in;
+wire psum_merge_pending_hold_w;
+assign psum_merge_pending_hold_w  = (psum_merge_out_pending_w === 1'b1);
+// Stall core only while the final pending beat is held in/out of the output FIFO.
+assign fifo_psum_out_core_ready_w =
+    psum_passthrough_w ? 1'b0 :
+    (psum_merge_pending_hold_w
+        ? (fifo_psum_out_fifo_in_ready_w &
+           (~fifo_psum_out_out_valid_w | fifo_psum_out_out_ready_w))
+        : fifo_psum_out_fifo_in_ready_w);
 
 always @(posedge clk) begin
     if (rst) begin
-        iact_addr_write_fin_r <= 1'b0;
-        iact_data_write_fin_r <= 1'b0;
-    end else if (iact_write_fin_clear) begin
-        iact_addr_write_fin_r <= 1'b0;
-        iact_data_write_fin_r <= 1'b0;
+        iact_addr_write_fin_r   <= 1'b0;
+        iact_data_write_fin_r    <= 1'b0;
+        weight_addr_write_fin_r  <= 1'b0;
+        weight_data_write_fin_r  <= 1'b0;
     end else begin
-        iact_addr_write_fin_r <= iact_addr_write_fin_r | core_ctrl_status_iact_address_write_fin_w;
-        iact_data_write_fin_r <= iact_data_write_fin_r | core_ctrl_status_iact_data_write_fin_w;
-    end
-end
+        if (iact_write_fin_clear) begin
+            iact_addr_write_fin_r  <= 1'b0;
+            iact_data_write_fin_r   <= 1'b0;
+        end else begin
+            iact_addr_write_fin_r <= iact_addr_write_fin_r | ctrl_status_iact_address_write_fin_w;
+            iact_data_write_fin_r  <= iact_data_write_fin_r  | ctrl_status_iact_data_write_fin_w;
+        end
 
-always @(posedge clk) begin
-    if (rst) begin
-        weight_addr_write_fin_r <= 1'b0;
-        weight_data_write_fin_r <= 1'b0;
-    end else if (weight_write_fin_clear) begin
-        weight_addr_write_fin_r <= 1'b0;
-        weight_data_write_fin_r <= 1'b0;
-    end else begin
-        weight_addr_write_fin_r <= weight_addr_write_fin_r | core_ctrl_status_weight_address_write_fin_w;
-        weight_data_write_fin_r <= weight_data_write_fin_r | core_ctrl_status_weight_data_write_fin_w;
+        if (weight_write_fin_clear) begin
+            weight_addr_write_fin_r <= 1'b0;
+            weight_data_write_fin_r  <= 1'b0;
+        end else begin
+            weight_addr_write_fin_r <= weight_addr_write_fin_r | ctrl_status_weight_address_write_fin_w;
+            weight_data_write_fin_r  <= weight_data_write_fin_r  | ctrl_status_weight_data_write_fin_w;
+        end
     end
 end
 

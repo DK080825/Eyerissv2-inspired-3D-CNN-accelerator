@@ -44,8 +44,8 @@ module Iact_Address_Spad #(
   localparam integer WA_W = $clog2(IACT_ADDR_VECTOR_DEPTH);
 
   localparam [IACT_ADDR_W-1:0] IACT_ADDR_SENTINEL = {IACT_ADDR_W{1'b1}};
-  // Write position: 0..8 = stored boundary index; 9 = awaiting sentinel (no data on ready).
-  localparam [WA_W:0] PTR_LAST_DATA  = {1'b0, {WA_W {1'b1}}};
+  // Write position: 0..(DEPTH-2) = stored boundaries; (DEPTH-1) = await sentinel (no data beat).
+  localparam [WA_W:0] PTR_LAST_DATA  = (IACT_ADDR_VECTOR_DEPTH - 1);
   localparam [WA_W:0] PTR_AWAIT_SENT = IACT_ADDR_VECTOR_DEPTH[WA_W:0];
 
   (* ram_style = "distributed" *)
