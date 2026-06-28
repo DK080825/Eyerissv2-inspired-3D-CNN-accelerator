@@ -81,8 +81,6 @@ module PE_Cluster3x4_Dataflow_Controller #(
     output wire                        glb_weight_data_resp_ready_out,
     input  wire [71:0]                 glb_weight_data_resp_data_in,
 
-    input  wire                        hm_all_write_fin_in,
-    input  wire                        hm_all_cal_fin_in,
     input  wire [11:0]                 hm_pe_iact_addr_write_fin_in,
     input  wire [11:0]                 hm_pe_iact_data_write_fin_in,
     input  wire [11:0]                 hm_pe_weight_addr_write_fin_in,
@@ -94,7 +92,6 @@ module PE_Cluster3x4_Dataflow_Controller #(
     input  wire [5:0]                  hm_iact_data_ready_in,
     input  wire [2:0]                  hm_weight_addr_ready_in,
     input  wire [2:0]                  hm_weight_data_ready_in,
-    input  wire [3:0]                  hm_psum_col_ready_from_router_in,
     input  wire [3:0]                  hm_psum_col_ready_from_south_in,
     input  wire [3:0]                  hm_psum_col_valid_in,
     input  wire [3:0]                  hm_psum_col_ready_in,
@@ -113,8 +110,6 @@ module PE_Cluster3x4_Dataflow_Controller #(
     output wire                        ctrl_psum_col_sink_ready_out,
     output wire                        ctrl_psum_col_capture_ready_out,
 
-    output wire [1:0]                  ctrl_layer_mode_out,
-    output wire [1:0]                  ctrl_iact_router_prio_out,
     // Native IACT emission: 3 physical lanes x 2 independent packets/lane.
     output wire [5:0]                  ctrl_iact_addr_slot_valid_out,
     output wire [29:0]                 ctrl_iact_addr_data_out,
@@ -147,13 +142,7 @@ module PE_Cluster3x4_Dataflow_Controller #(
     output wire [4:0]                  ctrl_cfg_psum_base_out,
     output wire [5:0]                  ctrl_cfg_m0_out,
     output wire                        ctrl_cfg_iact_flush_out,
-    output wire                        ctrl_cfg_slide_commit_out,
-    output wire [11:0]                 ctrl_pool_cmp_en_out,
-    output wire [11:0]                 ctrl_pool_cmp_stop_out,
-    output wire [11:0]                 ctrl_pool_elem_valid_out,
-    output wire signed [95:0]          ctrl_pool_elem_data_out,
-    output wire [11:0]                 ctrl_pool_win_first_out,
-    output wire [11:0]                 ctrl_pool_win_last_out
+    output wire                        ctrl_cfg_slide_commit_out
 );
 
     localparam [4:0] ST_IDLE             = 5'd0;
@@ -937,8 +926,6 @@ module PE_Cluster3x4_Dataflow_Controller #(
     assign ctrl_job_done_out = (state_r == ST_DONE);
     assign ctrl_job_error_out = (state_r == ST_ERROR);
 
-    assign ctrl_layer_mode_out = 2'b00;
-    assign ctrl_iact_router_prio_out = 2'b00;
     assign ctrl_iact_addr_slot_valid_out = iact_addr_stage_valid_r ? iact_addr_stage_slot_valid_r : 6'h00;
     assign ctrl_iact_addr_data_out = iact_addr_stage_payload_r;
     assign ctrl_iact_addr_dst_mask_out = iact_addr_stage_valid_r ? iact_addr_stage_dst_mask_r : 72'h0;
@@ -1006,12 +993,6 @@ module PE_Cluster3x4_Dataflow_Controller #(
     assign ctrl_cfg_m0_out = m0_r;
     assign ctrl_cfg_iact_flush_out = (state_r == ST_PASS_REARM);
     assign ctrl_cfg_slide_commit_out = (state_r == ST_SLIDE_COMMIT);
-    assign ctrl_pool_cmp_en_out = 12'h000;
-    assign ctrl_pool_cmp_stop_out = 12'h000;
-    assign ctrl_pool_elem_valid_out = 12'h000;
-    assign ctrl_pool_elem_data_out = 96'sd0;
-    assign ctrl_pool_win_first_out = 12'h000;
-    assign ctrl_pool_win_last_out = 12'h000;
     PE3x4_GLB_Read_Sequencer #(
         .AWIDTH(GLB_AW),
         .DATA_WIDTH(30),

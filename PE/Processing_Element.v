@@ -42,11 +42,9 @@ module Processing_Element (
     output wire                  ctrl_status_psum_acc_fin_out,
     output wire                  ctrl_status_slide_safe_out,
 
-    input  wire                  cluster_ctrl_external_control_en_in,
     input  wire                  cluster_ctrl_psum_enq_en_in,
     input  wire                  cluster_ctrl_psum_passthrough_en_in,
     input  wire                  cluster_ctrl_load_en_in,
-    input  wire                  cluster_ctrl_load_session_in,
     input  wire                  cluster_ctrl_mac_en_in,
     output wire                  ctrl_status_cal_fin_out,
 
@@ -121,9 +119,7 @@ reg iact_data_write_fin_r;
 reg weight_addr_write_fin_r;
 reg weight_data_write_fin_r;
 
-wire top_psum_enq_en_w;
 wire cluster_ctrl_psum_enq_en_w;
-wire cluster_ctrl_psum_enq_core_w;
 
 wire fifo_iact_addr_in_ready_w;
 wire fifo_iact_addr_in_valid_w;
@@ -170,9 +166,6 @@ wire signed [41:0] fifo_psum_out_out_w;
 wire psum_passthrough_w;
 
 assign psum_passthrough_w = (cluster_ctrl_psum_passthrough_en_in === 1'b1);
-assign top_psum_enq_en_w = cluster_ctrl_psum_enq_en_in;
-// Merge starts reach core only via controller accept (no top bypass).
-assign cluster_ctrl_psum_enq_core_w = cluster_ctrl_psum_enq_en_w;
 
 assign all_write_fin = iact_addr_write_fin_r & iact_data_write_fin_r &
                        weight_addr_write_fin_r & weight_data_write_fin_r;
@@ -198,7 +191,7 @@ assign pool_router_out_data_out   = core_pool_out_data_w;
 Processing_Element_Controller u_processing_element_controller (
     .clk                               (clk),
     .rst                               (rst),
-    .top_psum_enq_en_in                (top_psum_enq_en_w),
+    .top_psum_enq_en_in                (cluster_ctrl_psum_enq_en_in),
     .core_ctrl_status_psum_acc_fin_in  (ctrl_status_psum_acc_fin_w),
     .cluster_ctrl_psum_enq_en_out      (cluster_ctrl_psum_enq_en_w)
 );
@@ -228,7 +221,7 @@ Processing_Element_core_pipeline #(
     .weight_router_data_in             (weight_data_data_w),
     .weight_router_data_ready_out      (weight_data_ready_w),
     .cluster_ctrl_mac_en_in            (cluster_ctrl_mac_en_in),
-    .cluster_ctrl_psum_enq_en_in       (cluster_ctrl_psum_enq_core_w),
+    .cluster_ctrl_psum_enq_en_in       (cluster_ctrl_psum_enq_en_w),
     .cluster_ctrl_load_en_in           (cluster_ctrl_load_en_in),
     .ctrl_status_cal_fin_out           (ctrl_status_cal_fin_w),
     .ctrl_status_slide_safe_out        (ctrl_status_slide_safe_w),

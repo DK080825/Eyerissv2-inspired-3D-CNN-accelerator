@@ -56,7 +56,6 @@ module PE3x4_Cluster_System #(
     output wire                        ctrl_job_busy_out,
     output wire                        ctrl_job_done_out,
     output wire                        ctrl_job_error_out,
-    output wire [4:0]                  ctrl_state_dbg_out,
 
     input  wire [4:0]                  desc_kernel_h_in,
     input  wire [4:0]                  desc_kernel_w_in,
@@ -86,37 +85,7 @@ module PE3x4_Cluster_System #(
     input  wire [15:0]                 desc_psum_count_in,
     input  wire [4:0]                  desc_psum_depth_in,
     input  wire [4:0]                  desc_psum_base_in,
-    input  wire [5:0]                  desc_m0_in,
-
-
-    // GLB transaction debugging signals.
-    output wire                        dbg_glb_iact_addr_rd_valid_out,
-    output wire                        dbg_glb_iact_addr_rd_ready_out,
-    output wire [GLB_AW-1:0]           dbg_glb_iact_addr_rd_addr_out,
-    output wire                        dbg_glb_iact_data_rd_valid_out,
-    output wire                        dbg_glb_iact_data_rd_ready_out,
-    output wire [GLB_AW-1:0]           dbg_glb_iact_data_rd_addr_out,
-    output wire                        dbg_glb_weight_addr_rd_valid_out,
-    output wire                        dbg_glb_weight_addr_rd_ready_out,
-    output wire [GLB_AW-1:0]           dbg_glb_weight_addr_rd_addr_out,
-    output wire                        dbg_glb_weight_data_rd_valid_out,
-    output wire                        dbg_glb_weight_data_rd_ready_out,
-    output wire [GLB_AW-1:0]           dbg_glb_weight_data_rd_addr_out,
-    output wire                        dbg_glb_psum_wr_valid_out,
-    output wire                        dbg_glb_psum_wr_ready_out,
-    output wire [GLB_AW-1:0]           dbg_glb_psum_wr_addr_out,
-    output wire [167:0]                dbg_glb_psum_wr_data_out,
-    output wire                        dbg_glb_psum_rd_valid_out,
-    output wire                        dbg_glb_psum_rd_ready_out,
-    output wire [GLB_AW-1:0]           dbg_glb_psum_rd_addr_out,
-
-    output wire                        dbg_do_mac_en_out,
-    output wire                        dbg_slide_commit_out,
-    output wire [5:0]                  dbg_iact_addr_slot_valid_out,
-    output wire [71:0]                 dbg_iact_addr_dst_mask_out,
-    output wire [5:0]                  dbg_iact_data_slot_valid_out,
-    output wire [71:0]                 dbg_iact_data_dst_mask_out,
-    output wire [15:0]                 dbg_current_window_idx_out
+    input  wire [5:0]                  desc_m0_in
 );
     wire                        glb_iact_addr_rd_valid_w;
     wire                        glb_iact_addr_rd_ready_w;
@@ -218,7 +187,6 @@ module PE3x4_Cluster_System #(
         .ctrl_job_busy_out(ctrl_job_busy_out),
         .ctrl_job_done_out(ctrl_job_done_out),
         .ctrl_job_error_out(ctrl_job_error_out),
-        .ctrl_state_dbg_out(ctrl_state_dbg_out),
         .desc_kernel_h_in(desc_kernel_h_in),
         .desc_kernel_w_in(desc_kernel_w_in),
         .desc_stride_h_in(desc_stride_h_in),
@@ -327,45 +295,38 @@ module PE3x4_Cluster_System #(
         .router_pe_psum_forward_valid_in(router_pe_psum_forward_valid_w),
         .router_pe_psum_forward_ready_out(router_pe_psum_forward_ready_w),
         .router_pe_psum_forward_data_in(router_pe_psum_forward_data_w),
-        .psum_col_valid_out(unused_psum_col_valid_w),
-        .psum_col_data_out(unused_psum_col_data_w),
-        .pe_iact_addr_valid_out(unused_pe_iact_addr_valid_w),
-        .pe_iact_addr_ready_out(unused_pe_iact_addr_ready_w),
-        .pe_iact_addr_data_out(unused_pe_iact_addr_data_w),
-        .pe_iact_data_valid_out(unused_pe_iact_data_valid_w),
-        .pe_iact_data_ready_out(unused_pe_iact_data_ready_w),
-        .pe_iact_data_out(unused_pe_iact_data_w),
-        .pe_weight_addr_valid_out(unused_pe_weight_addr_valid_w),
-        .pe_weight_addr_ready_out(unused_pe_weight_addr_ready_w),
-        .pe_weight_addr_data_out(unused_pe_weight_addr_data_w),
-        .pe_weight_data_valid_out(unused_pe_weight_data_valid_w),
-        .pe_weight_data_ready_out(unused_pe_weight_data_ready_w),
-        .pe_weight_data_out(unused_pe_weight_data_w),
-        .pe_psum_router_ready_out(unused_pe_psum_router_ready_w),
-        .pe_psum_in_valid_out(unused_pe_psum_in_valid_w),
-        .pe_psum_in_ready_out(unused_pe_psum_in_ready_w),
-        .pe_psum_in_data_out(unused_pe_psum_in_data_w),
-        .pe_psum_out_valid_out(unused_pe_psum_out_valid_w),
-        .pe_psum_out_ready_out(unused_pe_psum_out_ready_w),
-        .pe_psum_out_data_out(unused_pe_psum_out_data_w),
-        .pe_iact_addr_write_fin_out(unused_pe_iact_addr_write_fin_w),
-        .pe_iact_data_write_fin_out(unused_pe_iact_data_write_fin_w),
-        .pe_weight_addr_write_fin_out(unused_pe_weight_addr_write_fin_w),
-        .pe_weight_data_write_fin_out(unused_pe_weight_data_write_fin_w),
-        .pe_psum_acc_fin_out(unused_pe_psum_acc_fin_w),
-        .pe_slide_safe_out(unused_pe_slide_safe_w),
-        .pe_all_write_fin_out(unused_pe_all_write_fin_w),
-        .pe_cal_fin_out(unused_pe_cal_fin_w),
-        .pe_load_en_out(unused_pe_load_en_w),
-        .pe_write_fin_sticky_out(unused_pe_write_fin_sticky_w),
-        .pe_cal_fin_sticky_out(unused_pe_cal_fin_sticky_w),
-        .dbg_do_mac_en_out(dbg_do_mac_en_out),
-        .dbg_slide_commit_out(dbg_slide_commit_out),
-        .dbg_iact_addr_slot_valid_out(dbg_iact_addr_slot_valid_out),
-        .dbg_iact_addr_dst_mask_out(dbg_iact_addr_dst_mask_out),
-        .dbg_iact_data_slot_valid_out(dbg_iact_data_slot_valid_out),
-        .dbg_iact_data_dst_mask_out(dbg_iact_data_dst_mask_out),
-        .dbg_current_window_idx_out(dbg_current_window_idx_out)
+        .psum_col_valid_out(),
+        .psum_col_data_out(),
+        .pe_iact_addr_valid_out(),
+        .pe_iact_addr_ready_out(),
+        .pe_iact_addr_data_out(),
+        .pe_iact_data_valid_out(),
+        .pe_iact_data_ready_out(),
+        .pe_iact_data_out(),
+        .pe_weight_addr_valid_out(),
+        .pe_weight_addr_ready_out(),
+        .pe_weight_addr_data_out(),
+        .pe_weight_data_valid_out(),
+        .pe_weight_data_ready_out(),
+        .pe_weight_data_out(),
+        .pe_psum_router_ready_out(),
+        .pe_psum_in_valid_out(),
+        .pe_psum_in_ready_out(),
+        .pe_psum_in_data_out(),
+        .pe_psum_out_valid_out(),
+        .pe_psum_out_ready_out(),
+        .pe_psum_out_data_out(),
+        .pe_iact_addr_write_fin_out(),
+        .pe_iact_data_write_fin_out(),
+        .pe_weight_addr_write_fin_out(),
+        .pe_weight_data_write_fin_out(),
+        .pe_psum_acc_fin_out(),
+        .pe_slide_safe_out(),
+        .pe_all_write_fin_out(),
+        .pe_cal_fin_out(),
+        .pe_load_en_out(),
+        .pe_write_fin_sticky_out(),
+        .pe_cal_fin_sticky_out()
     );
 
     Router_Cluster u_router_cluster (
@@ -499,23 +460,4 @@ module PE3x4_Cluster_System #(
         .psum_ctrl_rd_data_out(glb_psum_rd_resp_data_w)
     );
 
-    assign dbg_glb_iact_addr_rd_valid_out  = glb_iact_addr_rd_valid_w;
-    assign dbg_glb_iact_addr_rd_ready_out  = glb_iact_addr_rd_ready_w;
-    assign dbg_glb_iact_addr_rd_addr_out   = glb_iact_addr_rd_addr_w[GLB_AW-1:0];
-    assign dbg_glb_iact_data_rd_valid_out  = glb_iact_data_rd_valid_w;
-    assign dbg_glb_iact_data_rd_ready_out  = glb_iact_data_rd_ready_w;
-    assign dbg_glb_iact_data_rd_addr_out   = glb_iact_data_rd_addr_w[GLB_AW-1:0];
-    assign dbg_glb_weight_addr_rd_valid_out = glb_weight_addr_rd_valid_w;
-    assign dbg_glb_weight_addr_rd_ready_out = glb_weight_addr_rd_ready_w;
-    assign dbg_glb_weight_addr_rd_addr_out  = glb_weight_addr_rd_addr_w[GLB_AW-1:0];
-    assign dbg_glb_weight_data_rd_valid_out = glb_weight_data_rd_valid_w;
-    assign dbg_glb_weight_data_rd_ready_out = glb_weight_data_rd_ready_w;
-    assign dbg_glb_weight_data_rd_addr_out  = glb_weight_data_rd_addr_w[GLB_AW-1:0];
-    assign dbg_glb_psum_wr_valid_out       = glb_psum_wr_valid_w;
-    assign dbg_glb_psum_wr_ready_out       = glb_psum_wr_ready_w && glb_psum_wr_ready_gate_in;
-    assign dbg_glb_psum_wr_addr_out        = glb_psum_wr_addr_w[GLB_AW-1:0];
-    assign dbg_glb_psum_wr_data_out        = glb_psum_wr_data_w;
-    assign dbg_glb_psum_rd_valid_out       = glb_psum_rd_valid_w;
-    assign dbg_glb_psum_rd_ready_out       = glb_psum_rd_ready_w;
-    assign dbg_glb_psum_rd_addr_out        = glb_psum_rd_addr_w[GLB_AW-1:0];
 endmodule

@@ -3,8 +3,6 @@
 // Layout mapping: PE index = row * 4 + col, with rows=3 and cols=4.
 //
 // Processing_Element production control (all 12 PEs):
-//   cluster_ctrl_external_control_en_in = 1'b1 (production; legacy port ignored in PE)
-//   cluster_ctrl_load_session_in        = 1'b0 (no load-rise / local auto-MAC)
 //   cluster_ctrl_load_en_in             = do_load_en_in & ~pe_disable_in[pe]
 //   cluster_ctrl_mac_en_in              = do_mac_en_in  & ~pe_disable_in[pe]
 //   cluster_ctrl_psum_enq_en_in         = psum_enq_en_in & ~pe_disable_in[pe] (P1a)
@@ -341,7 +339,7 @@ module PE_Cluster3x4_HMesh #(
     genvar pe_idx;
     generate
         for (pe_idx = 0; pe_idx < PE_COUNT; pe_idx = pe_idx + 1) begin : gen_pe
-            // do_load_en / do_mac_en: cluster dataflow gates; not legacy load-session auto-MAC.
+            // do_load_en / do_mac_en are explicit cluster dataflow gates.
             assign pe_load_en_w[pe_idx]  = do_load_en_in  & ~pe_disable_in[pe_idx];
             assign pe_mac_en_w[pe_idx]   = do_mac_en_in   & ~pe_disable_in[pe_idx];
             assign pe_psum_enq_w[pe_idx] = psum_enq_en_in & ~pe_disable_in[pe_idx];
@@ -380,11 +378,9 @@ module PE_Cluster3x4_HMesh #(
                 .ctrl_status_psum_acc_fin_out(pe_psum_acc_fin_w[pe_idx]),
                 .ctrl_status_slide_safe_out(pe_slide_safe_w[pe_idx]),
 
-                .cluster_ctrl_external_control_en_in(1'b1),
                 .cluster_ctrl_psum_enq_en_in(pe_psum_enq_w[pe_idx]),
                 .cluster_ctrl_psum_passthrough_en_in(pe_disable_in[pe_idx]),
                 .cluster_ctrl_load_en_in(pe_load_en_w[pe_idx]),
-                .cluster_ctrl_load_session_in(1'b0),
                 .cluster_ctrl_mac_en_in(pe_mac_en_w[pe_idx]),
                 .ctrl_status_cal_fin_out(pe_cal_fin_w[pe_idx]),
 

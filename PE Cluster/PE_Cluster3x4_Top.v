@@ -22,7 +22,6 @@ module PE_Cluster3x4_Top #(
     output wire                        ctrl_job_busy_out,
     output wire                        ctrl_job_done_out,
     output wire                        ctrl_job_error_out,
-    output wire [4:0]                  ctrl_state_dbg_out,
 
     input  wire [4:0]                  desc_kernel_h_in,
     input  wire [4:0]                  desc_kernel_w_in,
@@ -183,22 +182,11 @@ module PE_Cluster3x4_Top #(
     output wire [11:0]                 pe_cal_fin_out,
     output wire [11:0]                 pe_load_en_out,
     output wire [11:0]                 pe_write_fin_sticky_out,
-    output wire [11:0]                 pe_cal_fin_sticky_out,
-
-    output wire                        dbg_do_mac_en_out,
-    output wire                        dbg_slide_commit_out,
-    output wire [5:0]                  dbg_iact_addr_slot_valid_out,
-    output wire [71:0]                 dbg_iact_addr_dst_mask_out,
-    output wire [5:0]                  dbg_iact_data_slot_valid_out,
-    output wire [71:0]                 dbg_iact_data_dst_mask_out,
-    output wire [15:0]                 dbg_current_window_idx_out
+    output wire [11:0]                 pe_cal_fin_sticky_out
 );
     // -------------------------------------------------------------------------------------------- //
     // Controller -> HMesh drive
     // -------------------------------------------------------------------------------------------- //
-    wire [1:0]                  hm_layer_mode_w;
-    wire [1:0]                  hm_iact_router_prio_w;
-
     wire [5:0]                  hm_iact_addr_slot_valid_w;
     wire [5:0]                  hm_iact_addr_slot_ready_w;
     wire [29:0]                 hm_iact_addr_data_w;
@@ -246,21 +234,7 @@ module PE_Cluster3x4_Top #(
     wire                        hm_ctrl_cfg_iact_flush_w;
     wire                        hm_ctrl_cfg_slide_commit_w;
 
-    wire [11:0]                 hm_pool_cmp_en_w;
-    wire [11:0]                 hm_pool_cmp_stop_w;
-    wire [11:0]                 hm_pool_elem_valid_w;
-    wire signed [95:0]          hm_pool_elem_data_w;
-    wire [11:0]                 hm_pool_win_first_w;
-    wire [11:0]                 hm_pool_win_last_w;
-    wire [11:0]                 hm_pool_elem_ready_w;
-    wire [11:0]                 hm_pool_out_valid_w;
-    wire signed [95:0]          hm_pool_out_data_w;
-    wire                        hm_all_write_fin_w;
-    wire                        hm_all_cal_fin_w;
-
     // Controller outputs
-    wire [1:0]                  ctrl_layer_mode_out;
-    wire [1:0]                  ctrl_iact_router_prio_out;
     wire [5:0]                  ctrl_iact_addr_slot_valid_out;
     wire [29:0]                 ctrl_iact_addr_data_out;
     wire [71:0]                 ctrl_iact_addr_dst_mask_out;
@@ -302,25 +276,14 @@ module PE_Cluster3x4_Top #(
     wire [5:0]                  ctrl_cfg_m0_out;
     wire                        ctrl_cfg_iact_flush_out;
     wire                        ctrl_cfg_slide_commit_out;
-    wire [11:0]                 ctrl_pool_cmp_en_out;
-    wire [11:0]                 ctrl_pool_cmp_stop_out;
-    wire [11:0]                 ctrl_pool_elem_valid_out;
-    wire signed [95:0]          ctrl_pool_elem_data_out;
-    wire [11:0]                 ctrl_pool_win_first_out;
-    wire [11:0]                 ctrl_pool_win_last_out;
-    wire [15:0]                 ctrl_dbg_current_window_idx_w;
-
     wire                        ctrl_job_busy_w;
     wire                        ctrl_job_done_w;
     wire                        ctrl_job_error_w;
-    wire [4:0]                  ctrl_state_dbg_w;
     wire                        ctrl_desc_ready_w;
 
     // -------------------------------------------------------------------------------------------- //
     // Production Top has one controller-owned native-ingress path.
     // -------------------------------------------------------------------------------------------- //
-    assign hm_layer_mode_w       = ctrl_layer_mode_out;
-    assign hm_iact_router_prio_w = ctrl_iact_router_prio_out;
     assign hm_iact_addr_slot_valid_w = router_pe_iact_addr_valid_in;
     assign hm_iact_addr_data_w       = router_pe_iact_addr_data_in;
     assign hm_iact_addr_dst_mask_w   = ctrl_iact_addr_dst_mask_out;
@@ -353,16 +316,9 @@ module PE_Cluster3x4_Top #(
     assign hm_ctrl_cfg_m0_w               = ctrl_cfg_m0_out;
     assign hm_ctrl_cfg_iact_flush_w       = ctrl_cfg_iact_flush_out;
     assign hm_ctrl_cfg_slide_commit_w     = ctrl_cfg_slide_commit_out;
-    assign hm_pool_cmp_en_w     = ctrl_pool_cmp_en_out;
-    assign hm_pool_cmp_stop_w   = ctrl_pool_cmp_stop_out;
-    assign hm_pool_elem_valid_w = ctrl_pool_elem_valid_out;
-    assign hm_pool_elem_data_w  = ctrl_pool_elem_data_out;
-    assign hm_pool_win_first_w  = ctrl_pool_win_first_out;
-    assign hm_pool_win_last_w   = ctrl_pool_win_last_out;
     assign ctrl_job_busy_out  = ctrl_job_busy_w;
     assign ctrl_job_done_out  = ctrl_job_done_w;
     assign ctrl_job_error_out = ctrl_job_error_w;
-    assign ctrl_state_dbg_out = ctrl_state_dbg_w;
     assign glb_psum_wr_valid_out = ctrl_glb_psum_wr_valid_w;
     assign glb_psum_wr_addr_out = ctrl_glb_psum_wr_addr_w;
     assign glb_psum_wr_data_out = ctrl_glb_psum_wr_data_w;
@@ -416,51 +372,6 @@ module PE_Cluster3x4_Top #(
         .ctrl_job_busy_out(ctrl_job_busy_w),
         .ctrl_job_done_out(ctrl_job_done_w),
         .ctrl_job_error_out(ctrl_job_error_w),
-        .ctrl_state_dbg_out(ctrl_state_dbg_w),
-        .ctrl_dbg_iact_addr_word_valid_out(),
-        .ctrl_dbg_iact_addr_word_ready_in(1'b1),
-        .ctrl_dbg_iact_addr_word_data_out(),
-        .ctrl_dbg_iact_addr_word_index_out(),
-        .ctrl_dbg_iact_addr_seq_done_out(),
-        .ctrl_dbg_iact_addr_stage_valid_out(),
-        .ctrl_dbg_iact_addr_stage_ready_in(1'b1),
-        .ctrl_dbg_iact_addr_stage_payload_out(),
-        .ctrl_dbg_iact_addr_stage_slot_valid_out(),
-        .ctrl_dbg_iact_addr_stage_dst_mask_out(),
-        .ctrl_dbg_iact_addr_stage_index_out(),
-        .ctrl_dbg_iact_data_word_valid_out(),
-        .ctrl_dbg_iact_data_word_ready_in(1'b1),
-        .ctrl_dbg_iact_data_word_data_out(),
-        .ctrl_dbg_iact_data_word_index_out(),
-        .ctrl_dbg_iact_data_seq_done_out(),
-        .ctrl_dbg_iact_data_stage_valid_out(),
-        .ctrl_dbg_iact_data_stage_ready_in(1'b1),
-        .ctrl_dbg_iact_data_stage_payload_out(),
-        .ctrl_dbg_iact_data_stage_slot_valid_out(),
-        .ctrl_dbg_iact_data_stage_dst_mask_out(),
-        .ctrl_dbg_iact_data_stage_index_out(),
-        .ctrl_dbg_weight_addr_word_valid_out(),
-        .ctrl_dbg_weight_addr_word_ready_in(1'b1),
-        .ctrl_dbg_weight_addr_word_data_out(),
-        .ctrl_dbg_weight_addr_word_index_out(),
-        .ctrl_dbg_weight_addr_seq_done_out(),
-        .ctrl_dbg_weight_addr_stage_valid_out(),
-        .ctrl_dbg_weight_addr_stage_ready_in(1'b1),
-        .ctrl_dbg_weight_addr_stage_payload_out(),
-        .ctrl_dbg_weight_addr_stage_valid_lanes_out(),
-        .ctrl_dbg_weight_addr_stage_row_dst_mask_out(),
-        .ctrl_dbg_weight_addr_stage_index_out(),
-        .ctrl_dbg_weight_data_word_valid_out(),
-        .ctrl_dbg_weight_data_word_ready_in(1'b1),
-        .ctrl_dbg_weight_data_word_data_out(),
-        .ctrl_dbg_weight_data_word_index_out(),
-        .ctrl_dbg_weight_data_seq_done_out(),
-        .ctrl_dbg_weight_data_stage_valid_out(),
-        .ctrl_dbg_weight_data_stage_ready_in(1'b1),
-        .ctrl_dbg_weight_data_stage_payload_out(),
-        .ctrl_dbg_weight_data_stage_valid_lanes_out(),
-        .ctrl_dbg_weight_data_stage_row_dst_mask_out(),
-        .ctrl_dbg_weight_data_stage_index_out(),
         .desc_valid_in(ctrl_job_start_in),
         .desc_ready_out(ctrl_desc_ready_w),
         .desc_kernel_h_in(desc_kernel_h_in),
@@ -516,8 +427,6 @@ module PE_Cluster3x4_Top #(
         .glb_weight_data_resp_valid_in(glb_weight_data_resp_valid_in),
         .glb_weight_data_resp_ready_out(glb_weight_data_resp_ready_out),
         .glb_weight_data_resp_data_in(glb_weight_data_resp_data_in),
-        .hm_all_write_fin_in(hm_all_write_fin_w),
-        .hm_all_cal_fin_in(hm_all_cal_fin_w),
         .hm_pe_iact_addr_write_fin_in(pe_iact_addr_write_fin_out),
         .hm_pe_iact_data_write_fin_in(pe_iact_data_write_fin_out),
         .hm_pe_weight_addr_write_fin_in(pe_weight_addr_write_fin_out),
@@ -529,7 +438,6 @@ module PE_Cluster3x4_Top #(
         .hm_iact_data_ready_in(router_local_iact_data_ready_in),
         .hm_weight_addr_ready_in(router_local_weight_addr_ready_in),
         .hm_weight_data_ready_in(router_local_weight_data_ready_in),
-        .hm_psum_col_ready_from_router_in(router_local_psum_forward_ready_in),
         .hm_psum_col_ready_from_south_in(router_north_psum_forward_ready_in),
         .hm_psum_col_valid_in(psum_col_valid_out),
         .hm_psum_col_ready_in(ctrl_psum_return_ready_w),
@@ -546,8 +454,6 @@ module PE_Cluster3x4_Top #(
         .glb_psum_rd_resp_data_in(glb_psum_rd_resp_data_in),
         .ctrl_psum_col_sink_ready_out(ctrl_psum_col_sink_ready_w),
         .ctrl_psum_col_capture_ready_out(ctrl_psum_col_capture_ready_w),
-        .ctrl_layer_mode_out(ctrl_layer_mode_out),
-        .ctrl_iact_router_prio_out(ctrl_iact_router_prio_out),
         .ctrl_iact_addr_slot_valid_out(ctrl_iact_addr_slot_valid_out),
         .ctrl_iact_addr_data_out(ctrl_iact_addr_data_out),
         .ctrl_iact_addr_dst_mask_out(ctrl_iact_addr_dst_mask_out),
@@ -579,14 +485,7 @@ module PE_Cluster3x4_Top #(
         .ctrl_cfg_psum_base_out(ctrl_cfg_psum_base_out),
         .ctrl_cfg_m0_out(ctrl_cfg_m0_out),
         .ctrl_cfg_iact_flush_out(ctrl_cfg_iact_flush_out),
-        .ctrl_cfg_slide_commit_out(ctrl_cfg_slide_commit_out),
-        .ctrl_pool_cmp_en_out(ctrl_pool_cmp_en_out),
-        .ctrl_pool_cmp_stop_out(ctrl_pool_cmp_stop_out),
-        .ctrl_pool_elem_valid_out(ctrl_pool_elem_valid_out),
-        .ctrl_pool_elem_data_out(ctrl_pool_elem_data_out),
-        .ctrl_pool_win_first_out(ctrl_pool_win_first_out),
-        .ctrl_pool_win_last_out(ctrl_pool_win_last_out),
-        .ctrl_dbg_current_window_idx_out(ctrl_dbg_current_window_idx_w)
+        .ctrl_cfg_slide_commit_out(ctrl_cfg_slide_commit_out)
     );
 
     PE_Cluster3x4_HMesh #(
@@ -594,8 +493,8 @@ module PE_Cluster3x4_Top #(
     ) u_hmesh (
         .clk(clk),
         .rst(rst),
-        .layer_mode_in(hm_layer_mode_w),
-        .iact_router_prio_in(hm_iact_router_prio_w),
+        .layer_mode_in(2'b00),
+        .iact_router_prio_in(2'b00),
         .iact_addr_slot_valid_in(hm_iact_addr_slot_valid_w),
         .iact_addr_slot_ready_out(hm_iact_addr_slot_ready_w),
         .iact_addr_data_in(hm_iact_addr_data_w),
@@ -630,8 +529,8 @@ module PE_Cluster3x4_Top #(
         .weight_write_fin_clear_in(hm_weight_write_fin_clear_w),
         .psum_depth_in(hm_psum_depth_w),
         .psum_spad_clear_in(hm_psum_spad_clear_w),
-        .all_write_fin_out(hm_all_write_fin_w),
-        .all_cal_fin_out(hm_all_cal_fin_w),
+        .all_write_fin_out(),
+        .all_cal_fin_out(),
         .ctrl_cfg_window_size_in(hm_ctrl_cfg_window_size_w),
         .ctrl_cfg_segment_len_in(hm_ctrl_cfg_segment_len_w),
         .ctrl_cfg_window_seg_count_in(hm_ctrl_cfg_window_seg_count_w),
@@ -639,16 +538,16 @@ module PE_Cluster3x4_Top #(
         .ctrl_cfg_m0_in(hm_ctrl_cfg_m0_w),
         .ctrl_cfg_iact_flush_in(hm_ctrl_cfg_iact_flush_w),
         .ctrl_cfg_slide_commit_in(hm_ctrl_cfg_slide_commit_w),
-        .pool_cmp_en_in(hm_pool_cmp_en_w),
-        .pool_cmp_stop_in(hm_pool_cmp_stop_w),
-        .pool_elem_valid_in(hm_pool_elem_valid_w),
-        .pool_elem_ready_out(hm_pool_elem_ready_w),
-        .pool_elem_data_in(hm_pool_elem_data_w),
-        .pool_win_first_in(hm_pool_win_first_w),
-        .pool_win_last_in(hm_pool_win_last_w),
-        .pool_out_valid_out(hm_pool_out_valid_w),
+        .pool_cmp_en_in(12'h000),
+        .pool_cmp_stop_in(12'h000),
+        .pool_elem_valid_in(12'h000),
+        .pool_elem_ready_out(),
+        .pool_elem_data_in(96'sd0),
+        .pool_win_first_in(12'h000),
+        .pool_win_last_in(12'h000),
+        .pool_out_valid_out(),
         .pool_out_ready_in(12'hfff),
-        .pool_out_data_out(hm_pool_out_data_w),
+        .pool_out_data_out(),
         .pe_iact_addr_valid_out(pe_iact_addr_valid_out),
         .pe_iact_addr_ready_out(pe_iact_addr_ready_out),
         .pe_iact_addr_data_out(pe_iact_addr_data_out),
@@ -680,13 +579,5 @@ module PE_Cluster3x4_Top #(
         .pe_write_fin_sticky_out(pe_write_fin_sticky_out),
         .pe_cal_fin_sticky_out(pe_cal_fin_sticky_out)
     );
-
-    assign dbg_do_mac_en_out = hm_do_mac_en_w;
-    assign dbg_slide_commit_out = hm_ctrl_cfg_slide_commit_w;
-    assign dbg_iact_addr_slot_valid_out = hm_iact_addr_slot_valid_w;
-    assign dbg_iact_addr_dst_mask_out = hm_iact_addr_dst_mask_w;
-    assign dbg_iact_data_slot_valid_out = hm_iact_data_slot_valid_w;
-    assign dbg_iact_data_dst_mask_out = hm_iact_data_dst_mask_w;
-    assign dbg_current_window_idx_out = ctrl_dbg_current_window_idx_w;
 
 endmodule
