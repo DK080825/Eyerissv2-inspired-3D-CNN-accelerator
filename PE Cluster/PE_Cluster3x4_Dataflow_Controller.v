@@ -1,63 +1,25 @@
 `timescale 1ns/1ps
 
+// ============================================================================
+// Module      : PE_Cluster3x4_Dataflow_Controller
+// Author      : Do Quoc Khanh
+// Description : Descriptor-driven local scheduler for one 3x4 PE cluster.
+//               Reads GLB payload streams, generates local delivery metadata,
+//               controls load/MAC/slide/drain sequencing, and reports job status.
+//               Current verified production path targets stride-1 convolution.
+// ============================================================================
+
 module PE_Cluster3x4_Dataflow_Controller #(
-    parameter integer GLB_AW = 16
+    parameter integer GLB_AW = 8
 ) (
     input  wire                        clk,
     input  wire                        rst,
 
     input  wire                        ctrl_job_start_in,
     input  wire                        ctrl_job_abort_in,
-    input  wire [1:0]                  ctrl_exec_mode_in,
-    input  wire [11:0]                 ctrl_pe_mask_in,
     output wire                        ctrl_job_busy_out,
     output wire                        ctrl_job_done_out,
     output wire                        ctrl_job_error_out,
-    output wire [4:0]                  ctrl_state_dbg_out,
-    output wire                        ctrl_dbg_iact_addr_word_valid_out,
-    input  wire                        ctrl_dbg_iact_addr_word_ready_in,
-    output wire [39:0]                 ctrl_dbg_iact_addr_word_data_out,
-    output wire [15:0]                 ctrl_dbg_iact_addr_word_index_out,
-    output wire                        ctrl_dbg_iact_addr_seq_done_out,
-    output wire                        ctrl_dbg_iact_addr_stage_valid_out,
-    input  wire                        ctrl_dbg_iact_addr_stage_ready_in,
-    output wire [39:0]                 ctrl_dbg_iact_addr_stage_payload_out,
-    output wire [7:0]                  ctrl_dbg_iact_addr_stage_slot_valid_out,
-    output wire [95:0]                 ctrl_dbg_iact_addr_stage_dst_mask_out,
-    output wire [15:0]                 ctrl_dbg_iact_addr_stage_index_out,
-    output wire                        ctrl_dbg_iact_data_word_valid_out,
-    input  wire                        ctrl_dbg_iact_data_word_ready_in,
-    output wire [103:0]                ctrl_dbg_iact_data_word_data_out,
-    output wire [15:0]                 ctrl_dbg_iact_data_word_index_out,
-    output wire                        ctrl_dbg_iact_data_seq_done_out,
-    output wire                        ctrl_dbg_iact_data_stage_valid_out,
-    input  wire                        ctrl_dbg_iact_data_stage_ready_in,
-    output wire [103:0]                ctrl_dbg_iact_data_stage_payload_out,
-    output wire [7:0]                  ctrl_dbg_iact_data_stage_slot_valid_out,
-    output wire [95:0]                 ctrl_dbg_iact_data_stage_dst_mask_out,
-    output wire [15:0]                 ctrl_dbg_iact_data_stage_index_out,
-    output wire                        ctrl_dbg_weight_addr_word_valid_out,
-    input  wire                        ctrl_dbg_weight_addr_word_ready_in,
-    output wire [20:0]                 ctrl_dbg_weight_addr_word_data_out,
-    output wire [15:0]                 ctrl_dbg_weight_addr_word_index_out,
-    output wire                        ctrl_dbg_weight_addr_seq_done_out,
-    output wire                        ctrl_dbg_weight_addr_stage_valid_out,
-    input  wire                        ctrl_dbg_weight_addr_stage_ready_in,
-    output wire [20:0]                 ctrl_dbg_weight_addr_stage_payload_out,
-    output wire [2:0]                  ctrl_dbg_weight_addr_stage_valid_lanes_out,
-    output wire [11:0]                 ctrl_dbg_weight_addr_stage_row_dst_mask_out,
-    output wire [15:0]                 ctrl_dbg_weight_addr_stage_index_out,
-    output wire                        ctrl_dbg_weight_data_word_valid_out,
-    input  wire                        ctrl_dbg_weight_data_word_ready_in,
-    output wire [71:0]                 ctrl_dbg_weight_data_word_data_out,
-    output wire [15:0]                 ctrl_dbg_weight_data_word_index_out,
-    output wire                        ctrl_dbg_weight_data_seq_done_out,
-    output wire                        ctrl_dbg_weight_data_stage_valid_out,
-    input  wire                        ctrl_dbg_weight_data_stage_ready_in,
-    output wire [71:0]                 ctrl_dbg_weight_data_stage_payload_out,
-    output wire [2:0]                  ctrl_dbg_weight_data_stage_valid_lanes_out,
-    output wire [11:0]                 ctrl_dbg_weight_data_stage_row_dst_mask_out,
-    output wire [15:0]                 ctrl_dbg_weight_data_stage_index_out,
 
     input  wire                        desc_valid_in,
     output wire                        desc_ready_out,
@@ -82,6 +44,7 @@ module PE_Cluster3x4_Dataflow_Controller #(
     input  wire [15:0]                 desc_weight_addr_word_count_in,
     input  wire [GLB_AW-1:0]           desc_weight_data_base_in,
     input  wire [15:0]                 desc_weight_data_word_count_in,
+    input  wire                        desc_weight_load_en_in,
     input  wire                        desc_weight_compute_buf_sel_in,
     input  wire [GLB_AW-1:0]           desc_psum_read_base_in,
     input  wire [GLB_AW-1:0]           desc_psum_write_base_in,
@@ -95,14 +58,14 @@ module PE_Cluster3x4_Dataflow_Controller #(
     output wire [GLB_AW-1:0]           glb_iact_addr_rd_addr_out,
     input  wire                        glb_iact_addr_resp_valid_in,
     output wire                        glb_iact_addr_resp_ready_out,
-    input  wire [39:0]                 glb_iact_addr_resp_data_in,
+    input  wire [29:0]                 glb_iact_addr_resp_data_in,
 
     output wire                        glb_iact_data_rd_valid_out,
     input  wire                        glb_iact_data_rd_ready_in,
     output wire [GLB_AW-1:0]           glb_iact_data_rd_addr_out,
     input  wire                        glb_iact_data_resp_valid_in,
     output wire                        glb_iact_data_resp_ready_out,
-    input  wire [103:0]                glb_iact_data_resp_data_in,
+    input  wire [71:0]                 glb_iact_data_resp_data_in,
 
     output wire                        glb_weight_addr_rd_valid_out,
     input  wire                        glb_weight_addr_rd_ready_in,
@@ -127,23 +90,38 @@ module PE_Cluster3x4_Dataflow_Controller #(
     input  wire [11:0]                 hm_pe_slide_safe_in,
     input  wire [11:0]                 hm_pe_cal_fin_in,
     input  wire [11:0]                 hm_pe_psum_acc_fin_in,
-    input  wire [7:0]                  hm_iact_addr_ready_in,
-    input  wire [7:0]                  hm_iact_data_ready_in,
+    input  wire [5:0]                  hm_iact_addr_ready_in,
+    input  wire [5:0]                  hm_iact_data_ready_in,
     input  wire [2:0]                  hm_weight_addr_ready_in,
     input  wire [2:0]                  hm_weight_data_ready_in,
     input  wire [3:0]                  hm_psum_col_ready_from_router_in,
     input  wire [3:0]                  hm_psum_col_ready_from_south_in,
     input  wire [3:0]                  hm_psum_col_valid_in,
     input  wire [3:0]                  hm_psum_col_ready_in,
+    input  wire signed [167:0]         hm_psum_col_data_in,
+
+    output wire                        glb_psum_wr_valid_out,
+    input  wire                        glb_psum_wr_ready_in,
+    output wire [GLB_AW-1:0]           glb_psum_wr_addr_out,
+    output wire [167:0]                glb_psum_wr_data_out,
+    output wire                        glb_psum_rd_valid_out,
+    input  wire                        glb_psum_rd_ready_in,
+    output wire [GLB_AW-1:0]           glb_psum_rd_addr_out,
+    input  wire                        glb_psum_rd_resp_valid_in,
+    output wire                        glb_psum_rd_resp_ready_out,
+    input  wire [167:0]                glb_psum_rd_resp_data_in,
+    output wire                        ctrl_psum_col_sink_ready_out,
+    output wire                        ctrl_psum_col_capture_ready_out,
 
     output wire [1:0]                  ctrl_layer_mode_out,
     output wire [1:0]                  ctrl_iact_router_prio_out,
-    output wire [7:0]                  ctrl_iact_addr_slot_valid_out,
-    output wire [39:0]                 ctrl_iact_addr_data_out,
-    output wire [95:0]                 ctrl_iact_addr_dst_mask_out,
-    output wire [7:0]                  ctrl_iact_data_slot_valid_out,
-    output wire [103:0]                ctrl_iact_data_out,
-    output wire [95:0]                 ctrl_iact_data_dst_mask_out,
+    // Native IACT emission: 3 physical lanes x 2 independent packets/lane.
+    output wire [5:0]                  ctrl_iact_addr_slot_valid_out,
+    output wire [29:0]                 ctrl_iact_addr_data_out,
+    output wire [71:0]                 ctrl_iact_addr_dst_mask_out,
+    output wire [5:0]                  ctrl_iact_data_slot_valid_out,
+    output wire [71:0]                 ctrl_iact_data_out,
+    output wire [71:0]                 ctrl_iact_data_dst_mask_out,
     output wire                        ctrl_do_mac_en_out,
     output wire [2:0]                  ctrl_weight_addr_valid_out,
     output wire [20:0]                 ctrl_weight_addr_data_out,
@@ -153,9 +131,9 @@ module PE_Cluster3x4_Dataflow_Controller #(
     output wire [11:0]                 ctrl_weight_data_row_dst_mask_out,
     output wire                        ctrl_psum_col_sel_out,
     output wire [3:0]                  ctrl_psum_col_valid_from_router_out,
-    output wire signed [83:0]          ctrl_psum_col_data_from_router_out,
+    output wire signed [167:0]         ctrl_psum_col_data_from_router_out,
     output wire [3:0]                  ctrl_psum_col_valid_from_south_out,
-    output wire signed [83:0]          ctrl_psum_col_data_from_south_out,
+    output wire signed [167:0]         ctrl_psum_col_data_from_south_out,
     output wire [11:0]                 ctrl_pe_disable_out,
     output wire                        ctrl_psum_enq_en_out,
     output wire                        ctrl_do_load_en_out,
@@ -220,11 +198,13 @@ module PE_Cluster3x4_Dataflow_Controller #(
     reg [15:0]       iact_append_addr_word_count_r;
     reg [GLB_AW-1:0] iact_append_data_base_r;
     reg [15:0]       iact_append_data_word_count_r;
+    reg [GLB_AW-1:0] iact_append_addr_cursor_r;
+    reg [GLB_AW-1:0] iact_append_data_cursor_r;
     reg [GLB_AW-1:0] weight_addr_base_r;
     reg [15:0]       weight_addr_word_count_r;
     reg [GLB_AW-1:0] weight_data_base_r;
     reg [15:0]       weight_data_word_count_r;
-    reg              weight_compute_buf_sel_r;
+    reg              weight_load_en_r;
     reg [GLB_AW-1:0] psum_read_base_r;
     reg [GLB_AW-1:0] psum_write_base_r;
     reg [15:0]       psum_count_r;
@@ -234,16 +214,16 @@ module PE_Cluster3x4_Dataflow_Controller #(
     reg              iact_addr_seq_started_r;
     reg              iact_data_seq_started_r;
     reg              iact_addr_stage_valid_r;
-    reg [39:0]       iact_addr_stage_payload_r;
-    reg [7:0]        iact_addr_stage_slot_valid_r;
-    reg [95:0]       iact_addr_stage_dst_mask_r;
+    reg [29:0]       iact_addr_stage_payload_r;
+    reg [5:0]        iact_addr_stage_slot_valid_r;
+    reg [71:0]       iact_addr_stage_dst_mask_r;
     reg [15:0]       iact_addr_stage_index_r;
     reg              iact_addr_seq_done_seen_r;
     reg              iact_addr_sched_done_seen_r;
     reg              iact_data_stage_valid_r;
-    reg [103:0]      iact_data_stage_payload_r;
-    reg [7:0]        iact_data_stage_slot_valid_r;
-    reg [95:0]       iact_data_stage_dst_mask_r;
+    reg [71:0]       iact_data_stage_payload_r;
+    reg [5:0]        iact_data_stage_slot_valid_r;
+    reg [71:0]       iact_data_stage_dst_mask_r;
     reg [15:0]       iact_data_stage_index_r;
     reg              iact_data_seq_done_seen_r;
     reg              iact_data_sched_done_seen_r;
@@ -273,13 +253,21 @@ module PE_Cluster3x4_Dataflow_Controller #(
     reg [5:0]        psum_seed_count_r [0:3];
     reg [5:0]        psum_output_count_r [0:3];
     reg [3:0]        psum_active_col_mask_r;
+    reg [3:0]        psum_seed_pair_accepted_r;
+    reg              psum_seed_rd_pending_r;
+    reg              psum_seed_word_valid_r;
+    reg [167:0]      psum_seed_word_data_r;
+    reg              psum_wr_buf_valid_r;
+    reg [GLB_AW-1:0] psum_wr_buf_addr_r;
+    reg [167:0]      psum_wr_buf_data_r;
     integer          psum_col_i;
 
     wire start_pulse_w = ctrl_job_start_in & ~start_prev_r;
     wire desc_accept_w = (state_r == ST_LATCH_DESC) & desc_valid_in;
     wire weight_load_contract_valid_w =
-        ((weight_addr_word_count_r == 16'd0) && (weight_data_word_count_r == 16'd0)) ||
-        ((weight_addr_word_count_r != 16'd0) && (weight_data_word_count_r != 16'd0));
+        weight_load_en_r ?
+            ((weight_addr_word_count_r != 16'd0) && (weight_data_word_count_r != 16'd0)) :
+            ((weight_addr_word_count_r == 16'd0) && (weight_data_word_count_r == 16'd0));
     wire w0_compute_requested_w = (iact_addr_word_count_r != 16'd0) &
                                   (iact_data_word_count_r != 16'd0);
     wire valid_k3_s1_rs_w = (kernel_h_r == 5'd3) & (kernel_w_r == 5'd3) &
@@ -306,44 +294,42 @@ module PE_Cluster3x4_Dataflow_Controller #(
     wire iact_data_seq_busy_w;
     wire iact_addr_seq_word_valid_w;
     wire iact_addr_seq_word_ready_w;
-    wire [39:0] iact_addr_seq_word_data_w;
+    wire [29:0] iact_addr_seq_word_data_w;
     wire [15:0] iact_addr_seq_word_index_w;
     wire iact_addr_sched_meta_valid_w;
     wire iact_addr_sched_meta_ready_w;
-    wire [7:0] iact_addr_sched_slot_valid_w;
-    wire [95:0] iact_addr_sched_dst_mask_w;
+    wire [5:0] iact_addr_sched_slot_valid_w;
+    wire [71:0] iact_addr_sched_dst_mask_w;
     wire [15:0] iact_addr_sched_beat_index_w;
     wire iact_addr_sched_done_w;
     wire iact_addr_sched_error_w;
     wire iact_data_seq_word_valid_w;
     wire iact_data_seq_word_ready_w;
-    wire [103:0] iact_data_seq_word_data_w;
+    wire [71:0] iact_data_seq_word_data_w;
     wire [15:0] iact_data_seq_word_index_w;
     wire iact_data_sched_meta_valid_w;
     wire iact_data_sched_meta_ready_w;
-    wire [7:0] iact_data_sched_slot_valid_w;
-    wire [95:0] iact_data_sched_dst_mask_w;
+    wire [5:0] iact_data_sched_slot_valid_w;
+    wire [71:0] iact_data_sched_dst_mask_w;
     wire [15:0] iact_data_sched_beat_index_w;
     wire iact_data_sched_done_w;
     wire iact_data_sched_error_w;
     wire iact_addr_sched_index_match_w;
     wire iact_data_sched_index_match_w;
 
-    wire [7:0] iact_addr_slot_present_w = 8'h3f;
-    wire [7:0] iact_data_slot_present_w = {
-        2'b00,
-        (iact_data_seq_word_data_w[65 +: 13] != 13'h000),
-        (iact_data_seq_word_data_w[52 +: 13] != 13'h000),
-        (iact_data_seq_word_data_w[39 +: 13] != 13'h000),
-        (iact_data_seq_word_data_w[26 +: 13] != 13'h000),
-        (iact_data_seq_word_data_w[13 +: 13] != 13'h000),
-        (iact_data_seq_word_data_w[0 +: 13] != 13'h000)
+    wire [5:0] iact_addr_slot_present_w = 6'h3f;
+    wire [5:0] iact_data_slot_present_w = {
+        (iact_data_seq_word_data_w[60 +: 12] != 12'h000),
+        (iact_data_seq_word_data_w[48 +: 12] != 12'h000),
+        (iact_data_seq_word_data_w[36 +: 12] != 12'h000),
+        (iact_data_seq_word_data_w[24 +: 12] != 12'h000),
+        (iact_data_seq_word_data_w[12 +: 12] != 12'h000),
+        (iact_data_seq_word_data_w[0 +: 12] != 12'h000)
     };
     wire weight_sched_meta_valid_w;
     wire weight_sched_meta_ready_w;
     wire [2:0] weight_sched_valid_lanes_w;
     wire [11:0] weight_sched_row_dst_mask_w;
-    wire [3:0] weight_sched_beat_index_w;
     wire weight_sched_done_w;
     wire weight_sched_error_w;
     wire weight_addr_seq_word_valid_w;
@@ -383,14 +369,6 @@ module PE_Cluster3x4_Dataflow_Controller #(
     wire append_loop_more_w = (append_next_index_w < append_segment_count_r);
     wire [15:0] window_next_index_w = current_window_idx_r + 16'd1;
     wire window_more_w = (window_next_index_w < output_window_count_r);
-    wire [15:0] transition_index_w =
-        (current_window_idx_r == 16'd0) ? 16'd0 : (current_window_idx_r - 16'd1);
-    wire [15:0] total_append_index_w =
-        (transition_index_w * append_segment_count_r) + append_index_r;
-    wire [GLB_AW-1:0] append_addr_iter_base_w =
-        iact_append_addr_base_r + (total_append_index_w * iact_append_addr_word_count_r);
-    wire [GLB_AW-1:0] append_data_iter_base_w =
-        iact_append_data_base_r + (total_append_index_w * iact_append_data_word_count_r);
     wire [3:0] active_col_mask_w = {
         |{active_pe_mask_r[11], active_pe_mask_r[7], active_pe_mask_r[3]},
         |{active_pe_mask_r[10], active_pe_mask_r[6], active_pe_mask_r[2]},
@@ -401,6 +379,21 @@ module PE_Cluster3x4_Dataflow_Controller #(
         ctrl_psum_col_valid_from_south_out & hm_psum_col_ready_from_south_in;
     wire [3:0] psum_output_fire_w =
         hm_psum_col_valid_in & hm_psum_col_ready_in & psum_active_col_mask_r;
+    wire [5:0] psum_pair_count_w = (m0_r + 6'd1) >> 1;
+    wire [5:0] psum_pair_index_w = psum_output_count_r[0] >> 1;
+    wire [5:0] psum_seed_pair_index_w = psum_seed_count_r[0] >> 1;
+    wire [15:0] psum_completed_window_idx_w =
+        current_window_idx_r - (slide_after_psum_drain_r ? 16'd1 : 16'd0);
+    wire psum_seed_from_glb_w = (psum_count_r != 16'd0);
+    wire psum_seed_need_word_w =
+        (state_r == ST_PSUM_DRAIN) &&
+        psum_seed_from_glb_w &&
+        (psum_seed_count_r[0] < m0_r);
+    wire psum_seed_available_w = !psum_seed_from_glb_w || psum_seed_word_valid_r;
+    wire psum_active_valid_w =
+        ((hm_psum_col_valid_in & psum_active_col_mask_r) == psum_active_col_mask_r);
+    wire psum_return_idle_w =
+        ((hm_psum_col_valid_in & psum_active_col_mask_r) == 4'b0000);
     wire [11:0] psum_acc_fin_seen_next_w = psum_acc_fin_seen_r | hm_pe_psum_acc_fin_in;
     wire psum_acc_fin_done_w =
         ((psum_acc_fin_seen_next_w & active_pe_mask_r) == active_pe_mask_r);
@@ -410,18 +403,19 @@ module PE_Cluster3x4_Dataflow_Controller #(
         (!psum_active_col_mask_r[2] || ((psum_seed_count_r[2] >= m0_r) && (psum_output_count_r[2] >= m0_r))) &&
         (!psum_active_col_mask_r[3] || ((psum_seed_count_r[3] >= m0_r) && (psum_output_count_r[3] >= m0_r))) &&
         psum_acc_fin_done_w;
-    wire weight_addr_stage_ready_w = ctrl_dbg_weight_addr_word_ready_in &
-                                     ctrl_dbg_weight_addr_stage_ready_in &
-                                     weight_addr_native_ready_w;
-    wire weight_data_stage_ready_w = ctrl_dbg_weight_data_word_ready_in &
-                                     ctrl_dbg_weight_data_stage_ready_in &
-                                     weight_data_native_ready_w;
-    wire iact_addr_stage_ready_w = ctrl_dbg_iact_addr_word_ready_in &
-                                   ctrl_dbg_iact_addr_stage_ready_in &
-                                   iact_addr_native_ready_w;
-    wire iact_data_stage_ready_w = ctrl_dbg_iact_data_word_ready_in &
-                                   ctrl_dbg_iact_data_stage_ready_in &
-                                   iact_data_native_ready_w;
+    wire psum_wr_buf_fire_w = psum_wr_buf_valid_r && glb_psum_wr_ready_in;
+    wire psum_wr_buf_can_accept_w = !psum_wr_buf_valid_r || psum_wr_buf_fire_w;
+    wire [3:0] psum_seed_fire_mask_w = psum_seed_fire_w & psum_active_col_mask_r;
+    wire [3:0] psum_seed_pair_accepted_next_w =
+        psum_seed_pair_accepted_r | psum_seed_fire_mask_w;
+    wire psum_seed_pair_done_w =
+        (state_r == ST_PSUM_DRAIN) &&
+        psum_seed_available_w &&
+        ((psum_seed_pair_accepted_next_w & psum_active_col_mask_r) == psum_active_col_mask_r);
+    wire weight_addr_stage_ready_w = weight_addr_native_ready_w;
+    wire weight_data_stage_ready_w = weight_data_native_ready_w;
+    wire iact_addr_stage_ready_w = iact_addr_native_ready_w;
+    wire iact_data_stage_ready_w = iact_data_native_ready_w;
     wire iact_addr_stage_fire_w = iact_addr_stage_valid_r & iact_addr_stage_ready_w;
     wire iact_data_stage_fire_w = iact_data_stage_valid_r & iact_data_stage_ready_w;
     wire weight_addr_stage_fire_w = weight_addr_stage_valid_r & weight_addr_stage_ready_w;
@@ -469,11 +463,13 @@ module PE_Cluster3x4_Dataflow_Controller #(
             iact_append_addr_word_count_r <= 16'd0;
             iact_append_data_base_r <= {GLB_AW{1'b0}};
             iact_append_data_word_count_r <= 16'd0;
+            iact_append_addr_cursor_r <= {GLB_AW{1'b0}};
+            iact_append_data_cursor_r <= {GLB_AW{1'b0}};
             weight_addr_base_r <= {GLB_AW{1'b0}};
             weight_addr_word_count_r <= 16'd0;
             weight_data_base_r <= {GLB_AW{1'b0}};
             weight_data_word_count_r <= 16'd0;
-            weight_compute_buf_sel_r <= 1'b0;
+            weight_load_en_r <= 1'b0;
             psum_read_base_r <= {GLB_AW{1'b0}};
             psum_write_base_r <= {GLB_AW{1'b0}};
             psum_count_r <= 16'd0;
@@ -483,16 +479,16 @@ module PE_Cluster3x4_Dataflow_Controller #(
             iact_addr_seq_started_r <= 1'b0;
             iact_data_seq_started_r <= 1'b0;
             iact_addr_stage_valid_r <= 1'b0;
-            iact_addr_stage_payload_r <= 40'h0;
-            iact_addr_stage_slot_valid_r <= 8'h00;
-            iact_addr_stage_dst_mask_r <= 96'h0;
+            iact_addr_stage_payload_r <= 30'h0;
+            iact_addr_stage_slot_valid_r <= 6'h00;
+            iact_addr_stage_dst_mask_r <= 72'h0;
             iact_addr_stage_index_r <= 16'd0;
             iact_addr_seq_done_seen_r <= 1'b0;
             iact_addr_sched_done_seen_r <= 1'b0;
             iact_data_stage_valid_r <= 1'b0;
-            iact_data_stage_payload_r <= 104'h0;
-            iact_data_stage_slot_valid_r <= 8'h00;
-            iact_data_stage_dst_mask_r <= 96'h0;
+            iact_data_stage_payload_r <= 72'h0;
+            iact_data_stage_slot_valid_r <= 6'h00;
+            iact_data_stage_dst_mask_r <= 72'h0;
             iact_data_stage_index_r <= 16'd0;
             iact_data_seq_done_seen_r <= 1'b0;
             iact_data_sched_done_seen_r <= 1'b0;
@@ -520,6 +516,13 @@ module PE_Cluster3x4_Dataflow_Controller #(
             slide_after_psum_drain_r <= 1'b0;
             psum_acc_fin_seen_r <= 12'h000;
             psum_active_col_mask_r <= 4'h0;
+            psum_seed_pair_accepted_r <= 4'h0;
+            psum_seed_rd_pending_r <= 1'b0;
+            psum_seed_word_valid_r <= 1'b0;
+            psum_seed_word_data_r <= 168'd0;
+            psum_wr_buf_valid_r <= 1'b0;
+            psum_wr_buf_addr_r <= {GLB_AW{1'b0}};
+            psum_wr_buf_data_r <= 168'd0;
             for (psum_col_i = 0; psum_col_i < 4; psum_col_i = psum_col_i + 1) begin
                 psum_seed_count_r[psum_col_i] <= 6'd0;
                 psum_output_count_r[psum_col_i] <= 6'd0;
@@ -559,11 +562,13 @@ module PE_Cluster3x4_Dataflow_Controller #(
                             iact_append_addr_word_count_r <= desc_iact_append_addr_word_count_in;
                             iact_append_data_base_r <= desc_iact_append_data_base_in;
                             iact_append_data_word_count_r <= desc_iact_append_data_word_count_in;
+                            iact_append_addr_cursor_r <= desc_iact_append_addr_base_in;
+                            iact_append_data_cursor_r <= desc_iact_append_data_base_in;
                             weight_addr_base_r <= desc_weight_addr_base_in;
                             weight_addr_word_count_r <= desc_weight_addr_word_count_in;
                             weight_data_base_r <= desc_weight_data_base_in;
                             weight_data_word_count_r <= desc_weight_data_word_count_in;
-                            weight_compute_buf_sel_r <= desc_weight_compute_buf_sel_in;
+                            weight_load_en_r <= desc_weight_load_en_in;
                             psum_read_base_r <= desc_psum_read_base_in;
                             psum_write_base_r <= desc_psum_write_base_in;
                             psum_count_r <= desc_psum_count_in;
@@ -613,10 +618,8 @@ module PE_Cluster3x4_Dataflow_Controller #(
                         end
                         if (weight_sched_error_w)
                             state_r <= ST_ERROR;
-                        if (weight_addr_word_count_r != 16'd0)
+                        if (weight_load_en_r)
                             state_r <= ST_WEIGHT_ADDR_READ;
-                        else if (weight_data_word_count_r != 16'd0)
-                            state_r <= ST_WEIGHT_DATA_READ;
                         else if (iact_addr_word_count_r != 16'd0)
                             state_r <= ST_IACT_ADDR_READ;
                         else if (iact_data_word_count_r != 16'd0)
@@ -757,6 +760,10 @@ module PE_Cluster3x4_Dataflow_Controller #(
                     ST_PSUM_ENQ: begin
                         psum_active_col_mask_r <= active_col_mask_w;
                         psum_acc_fin_seen_r <= 12'h000;
+                        psum_seed_pair_accepted_r <= 4'h0;
+                        psum_seed_rd_pending_r <= 1'b0;
+                        psum_seed_word_valid_r <= 1'b0;
+                        psum_wr_buf_valid_r <= 1'b0;
                         for (psum_col_i = 0; psum_col_i < 4; psum_col_i = psum_col_i + 1) begin
                             psum_seed_count_r[psum_col_i] <= 6'd0;
                             psum_output_count_r[psum_col_i] <= 6'd0;
@@ -766,13 +773,41 @@ module PE_Cluster3x4_Dataflow_Controller #(
 
                     ST_PSUM_DRAIN: begin
                         psum_acc_fin_seen_r <= psum_acc_fin_seen_next_w;
-                        for (psum_col_i = 0; psum_col_i < 4; psum_col_i = psum_col_i + 1) begin
-                            if (psum_seed_fire_w[psum_col_i] && (psum_seed_count_r[psum_col_i] < m0_r))
-                                psum_seed_count_r[psum_col_i] <= psum_seed_count_r[psum_col_i] + 6'd1;
-                            if (psum_output_fire_w[psum_col_i] && (psum_output_count_r[psum_col_i] < m0_r))
-                                psum_output_count_r[psum_col_i] <= psum_output_count_r[psum_col_i] + 6'd1;
+                        if (glb_psum_rd_valid_out && glb_psum_rd_ready_in)
+                            psum_seed_rd_pending_r <= 1'b1;
+                        if (glb_psum_rd_resp_valid_in && glb_psum_rd_resp_ready_out) begin
+                            psum_seed_word_valid_r <= 1'b1;
+                            psum_seed_word_data_r <= glb_psum_rd_resp_data_in;
+                            psum_seed_rd_pending_r <= 1'b0;
                         end
-                        if (psum_drain_done_w) begin
+                        for (psum_col_i = 0; psum_col_i < 4; psum_col_i = psum_col_i + 1) begin
+                            if (psum_seed_fire_w[psum_col_i] && (psum_seed_count_r[psum_col_i] < m0_r)) begin
+                                psum_seed_count_r[psum_col_i] <= psum_seed_count_r[psum_col_i] + 6'd2;
+                                psum_seed_pair_accepted_r[psum_col_i] <= 1'b1;
+                            end
+                            if (psum_output_fire_w[psum_col_i] && (psum_output_count_r[psum_col_i] < m0_r))
+                                psum_output_count_r[psum_col_i] <= psum_output_count_r[psum_col_i] + 6'd2;
+                        end
+                        if (psum_seed_pair_done_w) begin
+                            psum_seed_pair_accepted_r <= 4'h0;
+                            psum_seed_word_valid_r <= 1'b0;
+                        end
+                        if (psum_active_valid_w && (psum_output_count_r[0] < m0_r) &&
+                            psum_wr_buf_can_accept_w) begin
+                            psum_wr_buf_valid_r <= 1'b1;
+                            psum_wr_buf_addr_r <=
+                                psum_write_base_r + (psum_completed_window_idx_w * psum_pair_count_w) + psum_pair_index_w;
+                            psum_wr_buf_data_r <= {
+                                psum_active_col_mask_r[3] ? hm_psum_col_data_in[167:126] : 42'b0,
+                                psum_active_col_mask_r[2] ? hm_psum_col_data_in[125:84]  : 42'b0,
+                                psum_active_col_mask_r[1] ? hm_psum_col_data_in[83:42]   : 42'b0,
+                                psum_active_col_mask_r[0] ? hm_psum_col_data_in[41:0]    : 42'b0
+                            };
+                        end else if (psum_wr_buf_fire_w) begin
+                            psum_wr_buf_valid_r <= 1'b0;
+                        end
+                        if (psum_drain_done_w && psum_return_idle_w &&
+                            (!psum_wr_buf_valid_r || psum_wr_buf_fire_w)) begin
                             if (slide_after_psum_drain_r) begin
                                 slide_after_psum_drain_r <= 1'b0;
                                 state_r <= ST_APPEND_REARM;
@@ -802,10 +837,12 @@ module PE_Cluster3x4_Dataflow_Controller #(
                     ST_APPEND_REARM: begin
                         if (append_loop_active_w && (iact_append_addr_word_count_r != 16'd0)) begin
                             iact_append_phase_r <= 1'b1;
-                            iact_addr_base_r <= append_addr_iter_base_w;
+                            iact_addr_base_r <= iact_append_addr_cursor_r;
                             iact_addr_word_count_r <= iact_append_addr_word_count_r;
-                            iact_data_base_r <= append_data_iter_base_w;
+                            iact_data_base_r <= iact_append_data_cursor_r;
                             iact_data_word_count_r <= iact_append_data_word_count_r;
+                            iact_append_addr_cursor_r <= iact_append_addr_cursor_r + iact_append_addr_word_count_r;
+                            iact_append_data_cursor_r <= iact_append_data_cursor_r + iact_append_data_word_count_r;
                             iact_addr_seq_done_seen_r <= 1'b0;
                             iact_addr_sched_done_seen_r <= 1'b0;
                             iact_data_seq_done_seen_r <= 1'b0;
@@ -818,8 +855,9 @@ module PE_Cluster3x4_Dataflow_Controller #(
                         end else if (append_loop_active_w && (iact_append_data_word_count_r != 16'd0)) begin
                             iact_append_phase_r <= 1'b1;
                             iact_addr_word_count_r <= 16'd0;
-                            iact_data_base_r <= append_data_iter_base_w;
+                            iact_data_base_r <= iact_append_data_cursor_r;
                             iact_data_word_count_r <= iact_append_data_word_count_r;
+                            iact_append_data_cursor_r <= iact_append_data_cursor_r + iact_append_data_word_count_r;
                             iact_data_seq_done_seen_r <= 1'b0;
                             iact_data_sched_done_seen_r <= 1'b0;
                             iact_data_seq_started_r <= 1'b0;
@@ -895,55 +933,18 @@ module PE_Cluster3x4_Dataflow_Controller #(
 
     assign desc_ready_out = (state_r == ST_LATCH_DESC);
 
-    assign ctrl_state_dbg_out = state_r;
     assign ctrl_job_busy_out = (state_r != ST_IDLE) && (state_r != ST_DONE) && (state_r != ST_ERROR);
     assign ctrl_job_done_out = (state_r == ST_DONE);
     assign ctrl_job_error_out = (state_r == ST_ERROR);
 
-    assign ctrl_dbg_iact_addr_stage_valid_out = iact_addr_stage_valid_r;
-    assign ctrl_dbg_iact_addr_stage_payload_out = iact_addr_stage_payload_r;
-    assign ctrl_dbg_iact_addr_stage_slot_valid_out = iact_addr_stage_slot_valid_r;
-    assign ctrl_dbg_iact_addr_stage_dst_mask_out = iact_addr_stage_dst_mask_r;
-    assign ctrl_dbg_iact_addr_stage_index_out = iact_addr_stage_index_r;
-    assign ctrl_dbg_iact_addr_word_valid_out = iact_addr_stage_valid_r;
-    assign ctrl_dbg_iact_addr_word_data_out = iact_addr_stage_payload_r;
-    assign ctrl_dbg_iact_addr_word_index_out = iact_addr_stage_index_r;
-
-    assign ctrl_dbg_iact_data_stage_valid_out = iact_data_stage_valid_r;
-    assign ctrl_dbg_iact_data_stage_payload_out = iact_data_stage_payload_r;
-    assign ctrl_dbg_iact_data_stage_slot_valid_out = iact_data_stage_slot_valid_r;
-    assign ctrl_dbg_iact_data_stage_dst_mask_out = iact_data_stage_dst_mask_r;
-    assign ctrl_dbg_iact_data_stage_index_out = iact_data_stage_index_r;
-    assign ctrl_dbg_iact_data_word_valid_out = iact_data_stage_valid_r;
-    assign ctrl_dbg_iact_data_word_data_out = iact_data_stage_payload_r;
-    assign ctrl_dbg_iact_data_word_index_out = iact_data_stage_index_r;
-
-    assign ctrl_dbg_weight_addr_stage_valid_out = weight_addr_stage_valid_r;
-    assign ctrl_dbg_weight_addr_stage_payload_out = weight_addr_stage_payload_r;
-    assign ctrl_dbg_weight_addr_stage_valid_lanes_out = weight_addr_stage_valid_lanes_r;
-    assign ctrl_dbg_weight_addr_stage_row_dst_mask_out = weight_addr_stage_row_dst_mask_r;
-    assign ctrl_dbg_weight_addr_stage_index_out = weight_addr_stage_index_r;
-    assign ctrl_dbg_weight_addr_word_valid_out = weight_addr_stage_valid_r;
-    assign ctrl_dbg_weight_addr_word_data_out = weight_addr_stage_payload_r;
-    assign ctrl_dbg_weight_addr_word_index_out = weight_addr_stage_index_r;
-
-    assign ctrl_dbg_weight_data_stage_valid_out = weight_data_stage_valid_r;
-    assign ctrl_dbg_weight_data_stage_payload_out = weight_data_stage_payload_r;
-    assign ctrl_dbg_weight_data_stage_valid_lanes_out = weight_data_stage_valid_lanes_r;
-    assign ctrl_dbg_weight_data_stage_row_dst_mask_out = weight_data_stage_row_dst_mask_r;
-    assign ctrl_dbg_weight_data_stage_index_out = weight_data_stage_index_r;
-    assign ctrl_dbg_weight_data_word_valid_out = weight_data_stage_valid_r;
-    assign ctrl_dbg_weight_data_word_data_out = weight_data_stage_payload_r;
-    assign ctrl_dbg_weight_data_word_index_out = weight_data_stage_index_r;
-
     assign ctrl_layer_mode_out = 2'b00;
     assign ctrl_iact_router_prio_out = 2'b00;
-    assign ctrl_iact_addr_slot_valid_out = iact_addr_stage_valid_r ? iact_addr_stage_slot_valid_r : 8'h00;
+    assign ctrl_iact_addr_slot_valid_out = iact_addr_stage_valid_r ? iact_addr_stage_slot_valid_r : 6'h00;
     assign ctrl_iact_addr_data_out = iact_addr_stage_payload_r;
-    assign ctrl_iact_addr_dst_mask_out = iact_addr_stage_valid_r ? iact_addr_stage_dst_mask_r : 96'h0;
-    assign ctrl_iact_data_slot_valid_out = iact_data_stage_valid_r ? iact_data_stage_slot_valid_r : 8'h00;
+    assign ctrl_iact_addr_dst_mask_out = iact_addr_stage_valid_r ? iact_addr_stage_dst_mask_r : 72'h0;
+    assign ctrl_iact_data_slot_valid_out = iact_data_stage_valid_r ? iact_data_stage_slot_valid_r : 6'h00;
     assign ctrl_iact_data_out = iact_data_stage_payload_r;
-    assign ctrl_iact_data_dst_mask_out = iact_data_stage_valid_r ? iact_data_stage_dst_mask_r : 96'h0;
+    assign ctrl_iact_data_dst_mask_out = iact_data_stage_valid_r ? iact_data_stage_dst_mask_r : 72'h0;
     assign ctrl_do_mac_en_out = (state_r == ST_MAC_PULSE);
     assign ctrl_weight_addr_valid_out = weight_addr_stage_valid_r ? weight_addr_stage_valid_lanes_r : 3'b000;
     assign ctrl_weight_addr_data_out = weight_addr_stage_payload_r;
@@ -953,14 +954,34 @@ module PE_Cluster3x4_Dataflow_Controller #(
     assign ctrl_weight_data_row_dst_mask_out = weight_data_stage_valid_r ? weight_data_stage_row_dst_mask_r : 12'h000;
     assign ctrl_psum_col_sel_out = 1'b0;
     assign ctrl_psum_col_valid_from_router_out = 4'h0;
-    assign ctrl_psum_col_data_from_router_out = 84'sd0;
+    assign ctrl_psum_col_data_from_router_out = 168'sd0;
     assign ctrl_psum_col_valid_from_south_out = (state_r == ST_PSUM_DRAIN) ? {
-        psum_active_col_mask_r[3] & (psum_seed_count_r[3] < m0_r),
-        psum_active_col_mask_r[2] & (psum_seed_count_r[2] < m0_r),
-        psum_active_col_mask_r[1] & (psum_seed_count_r[1] < m0_r),
-        psum_active_col_mask_r[0] & (psum_seed_count_r[0] < m0_r)
+        psum_seed_available_w & psum_active_col_mask_r[3] & (psum_seed_count_r[3] < m0_r) & !psum_seed_pair_accepted_r[3],
+        psum_seed_available_w & psum_active_col_mask_r[2] & (psum_seed_count_r[2] < m0_r) & !psum_seed_pair_accepted_r[2],
+        psum_seed_available_w & psum_active_col_mask_r[1] & (psum_seed_count_r[1] < m0_r) & !psum_seed_pair_accepted_r[1],
+        psum_seed_available_w & psum_active_col_mask_r[0] & (psum_seed_count_r[0] < m0_r) & !psum_seed_pair_accepted_r[0]
     } : 4'h0;
-    assign ctrl_psum_col_data_from_south_out = 84'sd0;
+    assign ctrl_psum_col_data_from_south_out =
+        psum_seed_from_glb_w ? psum_seed_word_data_r : 168'sd0;
+    assign glb_psum_wr_valid_out = psum_wr_buf_valid_r;
+    assign glb_psum_wr_addr_out = psum_wr_buf_addr_r;
+    assign glb_psum_wr_data_out = psum_wr_buf_data_r;
+    assign ctrl_psum_col_sink_ready_out =
+        (state_r == ST_PSUM_DRAIN) &&
+        psum_active_valid_w &&
+        (psum_output_count_r[0] >= m0_r);
+    assign ctrl_psum_col_capture_ready_out =
+        (state_r == ST_PSUM_DRAIN) &&
+        (psum_output_count_r[0] < m0_r) &&
+        psum_wr_buf_can_accept_w;
+    assign glb_psum_rd_valid_out =
+        psum_seed_need_word_w &&
+        !psum_seed_word_valid_r &&
+        !psum_seed_rd_pending_r;
+    assign glb_psum_rd_addr_out =
+        psum_read_base_r + (psum_completed_window_idx_w * psum_pair_count_w) + psum_seed_pair_index_w;
+    assign glb_psum_rd_resp_ready_out =
+        (state_r == ST_PSUM_DRAIN) && !psum_seed_word_valid_r;
     assign ctrl_pe_disable_out = ~active_pe_mask_r;
     assign ctrl_psum_enq_en_out = (state_r == ST_PSUM_ENQ);
     assign ctrl_do_load_en_out =
@@ -975,7 +996,7 @@ module PE_Cluster3x4_Dataflow_Controller #(
         (state_r == ST_PASS_REARM) || (state_r == ST_APPEND_REARM);
     assign ctrl_weight_write_fin_clear_out =
         (state_r == ST_PASS_REARM) &&
-        ((weight_addr_word_count_r != 16'd0) || (weight_data_word_count_r != 16'd0));
+        weight_load_en_r;
     assign ctrl_psum_depth_out = psum_depth_r;
     assign ctrl_psum_spad_clear_out = (state_r == ST_PSUM_CLEAR);
     assign ctrl_cfg_window_size_out = valid_k3_s1_rs_w ? (c_in_r + c_in_r + c_in_r) : 5'd0;
@@ -991,10 +1012,9 @@ module PE_Cluster3x4_Dataflow_Controller #(
     assign ctrl_pool_elem_data_out = 96'sd0;
     assign ctrl_pool_win_first_out = 12'h000;
     assign ctrl_pool_win_last_out = 12'h000;
-
     PE3x4_GLB_Read_Sequencer #(
         .AWIDTH(GLB_AW),
-        .DATA_WIDTH(40),
+        .DATA_WIDTH(30),
         .COUNT_WIDTH(16)
     ) u_iact_addr_read_seq (
         .clk(clk),
@@ -1017,7 +1037,6 @@ module PE_Cluster3x4_Dataflow_Controller #(
         .done_out(iact_addr_seq_done_w)
     );
 
-    assign ctrl_dbg_iact_addr_seq_done_out = iact_addr_seq_done_w;
     assign iact_addr_seq_word_ready_w =
         iact_addr_sched_meta_valid_w &
         iact_addr_sched_index_match_w &
@@ -1047,7 +1066,7 @@ module PE_Cluster3x4_Dataflow_Controller #(
 
     PE3x4_GLB_Read_Sequencer #(
         .AWIDTH(GLB_AW),
-        .DATA_WIDTH(104),
+        .DATA_WIDTH(72),
         .COUNT_WIDTH(16)
     ) u_iact_data_read_seq (
         .clk(clk),
@@ -1070,7 +1089,6 @@ module PE_Cluster3x4_Dataflow_Controller #(
         .done_out(iact_data_seq_done_w)
     );
 
-    assign ctrl_dbg_iact_data_seq_done_out = iact_data_seq_done_w;
     assign iact_data_seq_word_ready_w =
         iact_data_sched_meta_valid_w &
         iact_data_sched_index_match_w &
@@ -1108,7 +1126,7 @@ module PE_Cluster3x4_Dataflow_Controller #(
         .meta_ready_in(weight_sched_meta_ready_w),
         .weight_valid_lanes_out(weight_sched_valid_lanes_w),
         .weight_row_dst_mask_out(weight_sched_row_dst_mask_w),
-        .beat_index_out(weight_sched_beat_index_w),
+        .beat_index_out(),
         .done_out(weight_sched_done_w),
         .error_out(weight_sched_error_w)
     );
@@ -1140,7 +1158,6 @@ module PE_Cluster3x4_Dataflow_Controller #(
         .done_out(weight_addr_seq_done_w)
     );
 
-    assign ctrl_dbg_weight_addr_seq_done_out = weight_addr_seq_done_w;
     assign weight_addr_seq_word_ready_w = weight_phase_meta_valid_r &
                                           (!weight_addr_stage_valid_r || weight_addr_stage_fire_w);
 
@@ -1169,33 +1186,7 @@ module PE_Cluster3x4_Dataflow_Controller #(
         .done_out(weight_data_seq_done_w)
     );
 
-    assign ctrl_dbg_weight_data_seq_done_out = weight_data_seq_done_w;
     assign weight_data_seq_word_ready_w = weight_phase_meta_valid_r &
                                           (!weight_data_stage_valid_r || weight_data_stage_fire_w);
 
-    wire _unused_w = ctrl_exec_mode_in[0] | ctrl_exec_mode_in[1] |
-                     ctrl_pe_mask_in[0] |
-                     m_out_r[0] | output_window_count_r[0] |
-                     append_segment_count_r[0] | append_index_r[0] |
-                     slide_after_psum_drain_r |
-                     iact_append_addr_base_r[0] | iact_append_addr_word_count_r[0] |
-                     iact_append_data_base_r[0] | iact_append_data_word_count_r[0] |
-                     weight_compute_buf_sel_r | psum_read_base_r[0] |
-                     psum_write_base_r[0] | psum_count_r[0] |
-                     stride_h_r[0] | stride_w_r[0] |
-                     iact_addr_seq_busy_w | iact_data_seq_busy_w |
-                     weight_sched_beat_index_w[0] | weight_sched_done_w |
-                     weight_addr_seq_busy_w | weight_data_seq_busy_w |
-                     hm_all_write_fin_in | hm_all_cal_fin_in |
-                     hm_pe_iact_addr_write_fin_in[0] |
-                     hm_pe_iact_data_write_fin_in[0] |
-                     hm_pe_weight_addr_write_fin_in[0] |
-                     hm_pe_weight_data_write_fin_in[0] |
-                     hm_pe_slide_safe_in[0] | hm_pe_cal_fin_in[0] |
-                     hm_iact_addr_ready_in[0] | hm_iact_data_ready_in[0] |
-                     hm_weight_addr_ready_in[0] | hm_weight_data_ready_in[0] |
-                     hm_psum_col_ready_from_router_in[0] |
-                     hm_psum_col_ready_from_south_in[0] |
-                     hm_psum_col_valid_in[0] | hm_psum_col_ready_in[0] |
-                     hm_pe_psum_acc_fin_in[0];
 endmodule

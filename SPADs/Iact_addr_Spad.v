@@ -1,16 +1,11 @@
-// ====================================================================================================== //
-// IACT CSC address-vector SPAD (Option B, Step 2).
-// - Streams boundary values like Weight_Address_Spad; one accepted beat = one addr[] entry.
-// - Segment i: seg_begin = addr[rd_seg_idx], seg_end = addr[rd_seg_idx+1] (exclusive end semantics).
-// - Empty segment: seg_begin == seg_end (repeated boundary).
-// - Sentinel 8'hFF terminates programming; it is NOT stored. write_fin is a 1-cycle pulse registered
-//   one cycle after the sentinel handshake (for stable sampling by core/TB).
-// - Eyeriss v2 PE: 9×8b cumulative boundary entries (supports up to 8 segments + slide append slot).
-//
-// NOTE (Step 2 / Option A compile): Processing_Element_core_pipeline still expects the legacy resident
-//       commit-ring port list. Full-core compile will fail until Step 3 rewires the core. Use the
-//       isolated tb_iact_address_spad_vector.sv + run_iact_address_vector_spad_tb.bat for Step 2.
-// ====================================================================================================== //
+// ============================================================================
+// Module      : Iact_Address_Spad
+// Author      : Do Quoc Khanh
+// Description : Register-style CSC boundary SPAD for resident IACT segments.
+//               Stores cumulative segment boundaries, detects the address
+//               sentinel, and supports slide updates for append-only windows.
+//               Empty segments are represented by repeated boundaries.
+// ============================================================================
 
 `default_nettype none
 
@@ -48,7 +43,8 @@ module Iact_Address_Spad #(
   localparam [WA_W:0] PTR_LAST_DATA  = (IACT_ADDR_VECTOR_DEPTH - 1);
   localparam [WA_W:0] PTR_AWAIT_SENT = IACT_ADDR_VECTOR_DEPTH[WA_W:0];
 
-  (* ram_style = "distributed" *)
+  // PE-local metadata is intentionally kept as register-style storage.
+  (* ram_style = "registers", ramstyle = "logic" *)
   reg [IACT_ADDR_W-1:0] iact_address_vector[0:IACT_ADDR_VECTOR_DEPTH-1];
 
   reg [WA_W:0] spad_write_addr_r;

@@ -1,10 +1,11 @@
-//***************************************************************************
-// Title: Processing Element Core
-// Author: DoKhanh
-// Date: 08/04/2026
-// Description: PE core pipeline for MAC datapath, resident IACT fetch, psum
-//               merge/writeback, and max-pool.
-//***************************************************************************
+// ============================================================================
+// Module      : Processing_Element_core_pipeline
+// Author      : Do Quoc Khanh
+// Description : Sparse PE core pipeline for resident IACT fetch, Weight CSC
+//               lookup, MAC accumulation, PSUM merge/writeback, and max-pool.
+//               Stores local IACT/Weight/PSUM state in SPADs and reports
+//               resident-ready, slide-safe, and calculation completion status.
+// ============================================================================
 
 `default_nettype none
 module Processing_Element_core_pipeline #(
@@ -22,8 +23,8 @@ module Processing_Element_core_pipeline #(
     parameter integer WEIGHT_COL_IDX_W         = $clog2(WEIGHT_ADDR_SPAD_DEPTH),
     parameter integer WEIGHT_WORD_PTR_W        = $clog2(WEIGHT_DATA_SPAD_DEPTH),
     parameter integer PSUM_ADDR_W              = $clog2(PSUM_SPAD_DEPTH),
-    parameter integer IACT_DATA_W              = 13,
-    parameter integer IACT_COUNT_W             = 5,
+    parameter integer IACT_DATA_W              = 12,
+    parameter integer IACT_COUNT_W             = 4,
     parameter integer IACT_VALUE_W             = 8,
     parameter integer WEIGHT_COUNT_W           = 4,
     parameter integer WEIGHT_VALUE_W           = 8,
@@ -31,17 +32,19 @@ module Processing_Element_core_pipeline #(
     parameter integer PSUM_W                   = 21,
     parameter integer WEIGHT_MATRIX_ROW        = 32,
     // M0 active rows per MAC (1..WEIGHT_MATRIX_ROW), from ctrl_cfg_m0_in each MAC.
-    parameter integer ACC_CFG_M0               = 4
+    parameter integer ACC_CFG_M0               = 4,
+    // Compile-time feature pruning. Default keeps the original full PE behavior.
+    parameter integer ENABLE_POOL              = 1
 )(
     input  wire                         clk,
     input  wire                         rst,
 
     output wire                         psum_router_ready_out,
     input  wire                         psum_router_valid_in,
-    input  wire signed [PSUM_W-1:0]     psum_router_data_in,
+    input  wire signed [(2*PSUM_W)-1:0] psum_router_data_in,
     input  wire                         psum_router_ready_in,
     output wire                         psum_router_valid_out,
-    output wire signed [PSUM_W-1:0]     psum_router_data_out,
+    output wire signed [(2*PSUM_W)-1:0] psum_router_data_out,
     output wire                         psum_merge_out_pending_out,
 
     input  wire                         iact_router_addr_valid_in,
@@ -98,6 +101,8 @@ localparam [1:0] MODE_RUN    = 2'd1;
 localparam [1:0] MODE_MERGE  = 2'd2;
 localparam [1:0] MODE_POOL   = 2'd3;
 localparam [IACT_ADDR_W-1:0] IACT_ADDR_SENTINEL = {IACT_ADDR_W{1'b1}};
+localparam integer MAC_PRODUCT_W = IACT_VALUE_W + WEIGHT_VALUE_W;
+localparam POOL_ENABLED = (ENABLE_POOL != 0);
 
 // -----------------------------------------------------------------------------
 // coarse mode and completion pulses
@@ -116,21 +121,24 @@ wire                           pool_xfer_w;
 
 assign pool_next_max_w = pool_router_win_first_in ? $signed(pool_router_elem_data_in)
        : (($signed(pool_router_elem_data_in) > $signed(pool_max_r)) ? pool_router_elem_data_in : pool_max_r);
-assign pool_xfer_w     = (mode_r == MODE_POOL) && pool_router_elem_valid_in && pool_router_elem_ready_out;
-assign pool_router_elem_ready_out = (mode_r == MODE_POOL) && (!pool_out_valid_r || pool_router_out_ready_in);
-assign pool_router_out_valid_out = pool_out_valid_r;
-assign pool_router_out_data_out  = pool_out_r;
+assign pool_xfer_w = POOL_ENABLED && (mode_r == MODE_POOL) &&
+                     pool_router_elem_valid_in && pool_router_elem_ready_out;
+assign pool_router_elem_ready_out = POOL_ENABLED && (mode_r == MODE_POOL) &&
+                                    (!pool_out_valid_r || pool_router_out_ready_in);
+assign pool_router_out_valid_out = POOL_ENABLED ? pool_out_valid_r : 1'b0;
+assign pool_router_out_data_out  = POOL_ENABLED ? pool_out_r : {IACT_VALUE_W{1'b0}};
 reg [PSUM_ADDR_W-1:0] merge_idx_r;
 reg                                psum_rd_en0_r;
 reg                                psum_in_valid_r;
 reg                                merge_out_pending_r;
-reg signed [PSUM_W-1:0]            merge_out_pending_data_r;
+reg signed [(2*PSUM_W)-1:0]        merge_out_pending_data_r;
 assign ctrl_status_cal_fin_out       = cal_fin_r;
 assign ctrl_status_psum_acc_fin_out = psum_acc_fin_r;
 assign psum_router_ready_out  = (mode_r == MODE_MERGE)
     ? (merge_out_pending_r ? 1'b0 : psum_router_ready_in)
     : 1'b0;
-assign psum_router_valid_out = (mode_r == MODE_MERGE) && (merge_out_pending_r | psum_in_valid_r);
+assign psum_router_valid_out = (mode_r == MODE_MERGE) &&
+    (merge_out_pending_r | psum_in_valid_r);
 assign psum_merge_out_pending_out = merge_out_pending_r;
 
 reg merge_req_pending_r;
@@ -145,8 +153,6 @@ assign mac_start_w = cluster_ctrl_mac_en_in;
 //
 
 reg                            load_en_r;
-reg                            weight_addr_load_seen_r;
-reg                            weight_data_load_seen_r;
 wire                           load_rise_w;
 assign load_rise_w = cluster_ctrl_load_en_in & ~load_en_r;
 // -----------------------------------------------------------------------------
@@ -206,8 +212,8 @@ reg  signed [PSUM_W-1:0]           psum_wr_data0_r;
 reg  signed [PSUM_W-1:0]           psum_wr_data1_r;
 wire signed [PSUM_W-1:0]           psum_spad_rd_data0_w;
 wire signed [PSUM_W-1:0]           psum_spad_rd_data1_w;
-wire signed [PSUM_W-1:0]           psum_out_w;
-reg signed  [PSUM_W-1:0]           psum_out_r;
+wire signed [(2*PSUM_W)-1:0]       psum_out_w;
+reg signed  [(2*PSUM_W)-1:0]       psum_out_r;
 reg [IACT_SEG_IDX_W-1:0]           iter_seg_rel_r;
 
 // -----------------------------------------------------------------------------
@@ -398,23 +404,17 @@ endfunction
 reg [3:0] wm_state_r;
 reg       iter_active_r;
 reg       iter_done_r;
-reg [SEG_PTR_W-1:0] iter_phys_seg_r;
 reg [IACT_DATA_PTR_W-1:0] iter_entry_abs_r, iter_entry_end_abs_r;
-reg                        iter_first_entry_r;
-reg [IACT_DATA_PTR_W-1:0]  iter_offset_base_r, iter_logical_seg_base_r;
+reg [IACT_DATA_PTR_W-1:0]  iter_logical_seg_base_r;
 reg [PSUM_ADDR_W-1:0]            window_psum_base_r;
 reg                                itr_rd_valid_r;
 reg                                itr_cap_valid_r;
 reg                                itr_dec_valid_r;
-reg [IACT_DATA_PTR_W-1:0]          itr_rd_entry_abs_r;
-reg [IACT_DATA_PTR_W-1:0]          itr_rd_entry_end_r;
 reg                                itr_rd_first_r;
 reg [IACT_DATA_PTR_W-1:0]          itr_rd_offset_base_r;
 reg [IACT_DATA_PTR_W-1:0]          itr_rd_log_seg_r;
 reg [PSUM_ADDR_W-1:0]              itr_rd_psum_base_r;
 reg [IACT_DATA_W-1:0]              itr_cap_word_r;
-reg [IACT_DATA_PTR_W-1:0]          itr_cap_entry_abs_r;
-reg [IACT_DATA_PTR_W-1:0]          itr_cap_entry_end_r;
 reg                                itr_cap_first_r;
 reg [IACT_DATA_PTR_W-1:0]          itr_cap_offset_base_r;
 reg [IACT_DATA_PTR_W-1:0]          itr_cap_log_seg_r;
@@ -435,7 +435,6 @@ wire      resident_window_ready_w;
 wire [PSUM_ADDR_W-1:0] itr_window_psum_base_w = window_psum_base_r;
 wire [IACT_DATA_PTR_W-1:0] iter_entry_next_w = iter_entry_abs_r + {{(IACT_DATA_PTR_W-1){1'b0}}, 1'b1};
 wire       iter_entry_is_last_w = (iter_entry_next_w == iter_entry_end_abs_r);
-wire [4:0] current_window_size_w = ctrl_cfg_window_size_in;
 wire [3:0] current_window_seg_count_w = ctrl_cfg_window_seg_count_in;
 wire [4:0] current_segment_len_w      = ctrl_cfg_segment_len_in;
 
@@ -539,14 +538,6 @@ wire                             frontend_task_ready_w;
 wire signed [IACT_VALUE_W-1:0]   frontend_task_iact_value_w;
 wire [WEIGHT_COL_IDX_W-1:0]      frontend_task_weight_col_w;
 wire [PSUM_ADDR_W-1:0]           frontend_task_psum_base_w;
-always @(posedge clk) begin
-    if (rst) begin
-        window_psum_base_r <= {PSUM_ADDR_W{1'b0}};
-    end else begin
-        if (mode_r == MODE_RUN && wm_state_r == ST_IDLE && sliding_iter_start_w)
-            window_psum_base_r <= ctrl_cfg_psum_base_in;
-    end
-end
 
 assign frontend_task_valid_w      = sliding_resp_valid_r;
 assign frontend_task_iact_value_w  = sliding_resp_value_r;
@@ -573,15 +564,12 @@ reg [PSUM_ADDR_W-1:0]            active_psum_base_r;
 reg [WEIGHT_WORD_PTR_W-1:0]      weight_word_ptr_r;
 reg [WEIGHT_WORD_PTR_W-1:0]      weight_word_end_r;
 reg [PSUM_ADDR_W-1:0]            weight_row_base_r;
-reg                              weight_first_word_r;
 reg                              weight_issue_done_r;
 reg                              s3_pending_r;
 reg                              s3_delay_r;    
 reg signed [IACT_VALUE_W-1:0]    s3_iact_value_r;
-reg [WEIGHT_COL_IDX_W-1:0]       s3_weight_col_r;
 reg [PSUM_ADDR_W-1:0]            s3_psum_base_r;
 reg [PSUM_ADDR_W-1:0]            s3_weight_row_base_r;
-reg                              s3_weight_first_word_r;
 reg [WEIGHT_WORD_PTR_W-1:0]      s3_weight_word_ptr_r;
 reg [WEIGHT_WORD_PTR_W-1:0]      s3_weight_word_end_r;
 
@@ -612,27 +600,18 @@ localparam integer ACC_M0_W        = (WEIGHT_MATRIX_ROW <= 1) ? 1 : $clog2(WEIGH
 localparam integer ACC_PRELOAD_PAIRS_MAX = (WEIGHT_MATRIX_ROW + 1) / 2;
 localparam integer ACC_PRELOAD_IDX_W =
     (ACC_PRELOAD_PAIRS_MAX <= 1) ? 1 : $clog2(ACC_PRELOAD_PAIRS_MAX + 1);
-
-function automatic [ACC_ROW_IDX_W-1:0] lowest_dirty_row(input [WEIGHT_MATRIX_ROW-1:0] mask);
-    integer k;
+function automatic [ACC_ROW_IDX_W-1:0] lowest_dirty_row(input [WEIGHT_MATRIX_ROW-1:0] dirty);
+    integer i;
     reg found;
     begin
         lowest_dirty_row = {ACC_ROW_IDX_W{1'b0}};
-        found = 0;
-        for (k = 0; k < WEIGHT_MATRIX_ROW; k = k + 1)
-            if (!found && mask[k]) begin
-                lowest_dirty_row = k[ACC_ROW_IDX_W-1:0];
-                found = 1;
+        found = 1'b0;
+        for (i = 0; i < WEIGHT_MATRIX_ROW; i = i + 1) begin
+            if (!found && dirty[i]) begin
+                lowest_dirty_row = i[ACC_ROW_IDX_W-1:0];
+                found = 1'b1;
             end
-    end
-endfunction
-
-function automatic [ACC_M0_W:0] acc_dirty_popcount_fn(input [WEIGHT_MATRIX_ROW-1:0] mask);
-    integer k;
-    begin
-        acc_dirty_popcount_fn = {(ACC_M0_W + 1){1'b0}};
-        for (k = 0; k < WEIGHT_MATRIX_ROW; k = k + 1)
-            acc_dirty_popcount_fn = acc_dirty_popcount_fn + {{ACC_M0_W{1'b0}}, mask[k]};
+        end
     end
 endfunction
 
@@ -665,39 +644,28 @@ wire                               acc_m0_cfg_legal_w =
 wire                               acc_psum_cfg_legal_w =
     (ctrl_cfg_psum_base_in + acc_m0_cfg_w[PSUM_ADDR_W-1:0] <= PSUM_SPAD_DEPTH);
 wire                               mac_cfg_legal_w = acc_m0_cfg_legal_w && acc_psum_cfg_legal_w;
-// Flush beat: write up to two lowest dirty rows per cycle (independent 2W ports).
+// Flush beat: write up to two dirty rows per cycle (independent 2W ports).
 wire [ACC_ROW_IDX_W-1:0]         acc_flush_a_w;
 wire [ACC_ROW_IDX_W-1:0]         acc_flush_b_w;
 wire                             acc_flush_b_valid_w;
-wire [WEIGHT_MATRIX_ROW-1:0]     acc_dirty_after_ab_w;
 wire                             acc_flush_beat_done_w;
+wire [WEIGHT_MATRIX_ROW-1:0]     acc_dirty_mask_a_w;
+wire [WEIGHT_MATRIX_ROW-1:0]     acc_dirty_mask_b_w;
+wire [WEIGHT_MATRIX_ROW-1:0]     acc_dirty_after_a_w;
+wire [WEIGHT_MATRIX_ROW-1:0]     acc_dirty_after_b_w;
 
 // Iterator starts only after accumulator preload completes.
 wire                             sliding_iter_start_eff_w;
 assign sliding_iter_start_eff_w = sliding_iter_start_w && acc_ready_r;
 
-wire [WEIGHT_MATRIX_ROW:0]         acc_m0_shift_w =
-    {{(WEIGHT_MATRIX_ROW - ACC_M0_W){1'b0}}, 1'b1} << acc_m0_r;
-wire [WEIGHT_MATRIX_ROW-1:0]       acc_m0_active_mask_w =
-    (acc_m0_shift_w > {WEIGHT_MATRIX_ROW{1'b0}}) ?
-    (acc_m0_shift_w[WEIGHT_MATRIX_ROW-1:0] - 1'b1) : {WEIGHT_MATRIX_ROW{1'b0}};
-wire [WEIGHT_MATRIX_ROW-1:0]       acc_dirty_active_w = acc_dirty_r & acc_m0_active_mask_w;
-
-assign acc_flush_a_w = lowest_dirty_row(acc_dirty_active_w);
-
-wire [WEIGHT_MATRIX_ROW-1:0]       acc_dirty_after_a_w;
-
-assign acc_dirty_after_a_w =
-    acc_dirty_r & ~({{(WEIGHT_MATRIX_ROW - 1){1'b0}}, 1'b1} << acc_flush_a_w);
-
-assign acc_flush_b_valid_w = |acc_dirty_active_w & ~({{(WEIGHT_MATRIX_ROW - 1){1'b0}}, 1'b1} << acc_flush_a_w);
-
-assign acc_flush_b_w = lowest_dirty_row(acc_dirty_active_w & ~({{(WEIGHT_MATRIX_ROW - 1){1'b0}}, 1'b1} << acc_flush_a_w));
-
-assign acc_dirty_after_ab_w =
-    acc_dirty_after_a_w & ~({{(WEIGHT_MATRIX_ROW - 1){1'b0}}, 1'b1} << acc_flush_b_w);
-
-assign acc_flush_beat_done_w = ~|acc_dirty_after_ab_w;
+assign acc_flush_a_w = lowest_dirty_row(acc_dirty_r);
+assign acc_dirty_mask_a_w = ({{(WEIGHT_MATRIX_ROW-1){1'b0}}, 1'b1} << acc_flush_a_w);
+assign acc_dirty_after_a_w = acc_dirty_r & ~acc_dirty_mask_a_w;
+assign acc_flush_b_w = lowest_dirty_row(acc_dirty_after_a_w);
+assign acc_flush_b_valid_w = |acc_dirty_after_a_w;
+assign acc_dirty_mask_b_w = ({{(WEIGHT_MATRIX_ROW-1){1'b0}}, 1'b1} << acc_flush_b_w);
+assign acc_dirty_after_b_w = acc_dirty_after_a_w & ~acc_dirty_mask_b_w;
+assign acc_flush_beat_done_w = ~(|acc_dirty_after_b_w);
 
 wire                             issue_weight_word_w;
 wire [PSUM_ADDR_W-1:0]           s4_weight_row0_calc_w;
@@ -709,6 +677,10 @@ wire [PSUM_ADDR_W-1:0]           s4_psum_addr1_w;
 wire                             s4_last_weight_word_w;
 wire signed [PSUM_W-1:0]         s5_product0_w;
 wire signed [PSUM_W-1:0]         s5_product1_w;
+(* use_dsp = "yes" *) wire signed [MAC_PRODUCT_W-1:0] s5_product0_raw_w;
+(* use_dsp = "yes" *) wire signed [MAC_PRODUCT_W-1:0] s5_product1_raw_w;
+wire signed [PSUM_W-1:0]         s5_product0_ext_w;
+wire signed [PSUM_W-1:0]         s5_product1_ext_w;
 wire                             frontend_done_w;
 wire                             backend_pipe_empty_w;
 wire                             run_compute_done_w;
@@ -725,14 +697,22 @@ wire                             allow_active_start_w;
 wire [WEIGHT_WORD_PTR_W-1:0] weight_issue_ptr_plus1_w;
 wire                         issue_this_is_last_w;
 wire [PSUM_ADDR_W-1:0]       issue_row_base_w;
-wire                         issue_first_word_w;
 wire                         weight_addr_load_accept_w;
 wire                         weight_data_load_accept_w;
+
+generate
+    if (MAC_PRODUCT_W >= PSUM_W) begin : gen_mac_product_truncate
+        assign s5_product0_ext_w = s5_product0_raw_w[PSUM_W-1:0];
+        assign s5_product1_ext_w = s5_product1_raw_w[PSUM_W-1:0];
+    end else begin : gen_mac_product_extend
+        assign s5_product0_ext_w = {{(PSUM_W-MAC_PRODUCT_W){s5_product0_raw_w[MAC_PRODUCT_W-1]}}, s5_product0_raw_w};
+        assign s5_product1_ext_w = {{(PSUM_W-MAC_PRODUCT_W){s5_product1_raw_w[MAC_PRODUCT_W-1]}}, s5_product1_raw_w};
+    end
+endgenerate
 
 assign weight_issue_ptr_plus1_w = weight_word_ptr_r + {{(WEIGHT_WORD_PTR_W-1){1'b0}},1'b1};
 assign issue_this_is_last_w     = (weight_issue_ptr_plus1_w >= weight_word_end_r);
 assign issue_row_base_w   = s3_pending_r ? s4_weight_next_base_w : weight_row_base_r;
-assign issue_first_word_w = s3_pending_r ? 1'b0                  : weight_first_word_r;
 assign weight_router_addr_ready_out = cluster_ctrl_load_en_in &&
                                        weight_address_spad_data_in_ready_w;
 assign weight_router_data_ready_out = cluster_ctrl_load_en_in &&
@@ -800,25 +780,37 @@ assign s4_weight_next_base_w = weight_lane1_valid_w ?
 assign s4_psum_addr0_w       = s3_psum_base_r + s4_weight_row0_calc_w;
 assign s4_psum_addr1_w       = s3_psum_base_r + s4_weight_row1_calc_w;
 assign s4_last_weight_word_w = ((s3_weight_word_ptr_r + {{(WEIGHT_WORD_PTR_W-1){1'b0}},1'b1}) >= s3_weight_word_end_r);
-assign s5_product0_w         = s4_lane0_valid_r ? ($signed(s4_weight_value0_r) * $signed(s4_iact_value_r)) : $signed({PSUM_W{1'b0}});
-assign s5_product1_w         = s4_lane1_valid_r ? ($signed(s4_weight_value1_r) * $signed(s4_iact_value_r)) : $signed({PSUM_W{1'b0}});
+assign s5_product0_raw_w     = $signed(s4_weight_value0_r) * $signed(s4_iact_value_r);
+assign s5_product1_raw_w     = $signed(s4_weight_value1_r) * $signed(s4_iact_value_r);
+assign s5_product0_w         = s4_lane0_valid_r ? s5_product0_ext_w : $signed({PSUM_W{1'b0}});
+assign s5_product1_w         = s4_lane1_valid_r ? s5_product1_ext_w : $signed({PSUM_W{1'b0}});
 
 assign acc_bypass_spad_rmw_w = (mode_r == MODE_RUN) && (acc_phase_r == ACC_COMPUTE);
 wire [PSUM_ADDR_W-1:0]           s5_row_off0_full_w = s5_psum_addr0_r - acc_base_r;
 wire [PSUM_ADDR_W-1:0]           s5_row_off1_full_w = s5_psum_addr1_r - acc_base_r;
 assign s5_local_row0_w           = s5_row_off0_full_w[ACC_ROW_IDX_W-1:0];
 assign s5_local_row1_w           = s5_row_off1_full_w[ACC_ROW_IDX_W-1:0];
+(* use_dsp = "no" *) wire signed [PSUM_W-1:0] acc_sum_lane0_w =
+    acc_r[s5_local_row0_w] + s5_product0_r;
+(* use_dsp = "no" *) wire signed [PSUM_W-1:0] acc_sum_lane1_w =
+    acc_r[s5_local_row1_w] + s5_product1_r;
+(* use_dsp = "no" *) wire signed [PSUM_W-1:0] acc_sum_same_row_w =
+    acc_r[s5_local_row0_w] + s5_product0_r + s5_product1_r;
 wire                               s5_lane0_acc_en_w =
     s5_lane0_valid_r && (s5_psum_addr0_r >= acc_base_r) &&
     (s5_row_off0_full_w < acc_m0_r) && (s5_row_off0_full_w < WEIGHT_MATRIX_ROW);
 wire                               s5_lane1_acc_en_w =
     s5_lane1_valid_r && (s5_psum_addr1_r >= acc_base_r) &&
     (s5_row_off1_full_w < acc_m0_r) && (s5_row_off1_full_w < WEIGHT_MATRIX_ROW);
+wire                               s5_acc_update_w =
+    !ctrl_cfg_psum_spad_clear_in && s5_valid_r && (acc_phase_r == ACC_COMPUTE) && !acc_flush_hold_w;
+wire                               s5_same_row_w =
+    s5_lane0_valid_r && s5_lane1_valid_r && (s5_psum_addr0_r == s5_psum_addr1_r);
 // Flush beats run in ACC_COMPUTE (post-MAC drain); backend is empty when run_compute_done asserts.
 wire                               acc_flush_beat_w =
     (acc_phase_r == ACC_COMPUTE) &&
     (run_compute_done_w || acc_post_compute_flush_r) &&
-    |acc_dirty_active_w;
+    (|acc_dirty_r);
 // Accumulator MAC: drain through S5 only (no S6 writeback stage).
 assign backend_pipe_empty_w  =
     !s2_valid_r && !active_task_valid_r && !s3_delay_r && !s3_pending_r &&
@@ -836,7 +828,7 @@ assign slide_commit_arm_w = slide_safe_w || slide_safe_post_mac_w;
 assign ctrl_status_slide_safe_out = slide_commit_arm_w;
 
 assign run_compute_done_w    = frontend_done_w && queue_empty_w && backend_pipe_empty_w;
-assign acc_flush_hold_w      = acc_post_compute_flush_r || (run_compute_done_w && |acc_dirty_r);
+assign acc_flush_hold_w      = acc_post_compute_flush_r || (run_compute_done_w && (|acc_dirty_r));
 assign acc_mac_complete_w    = run_compute_done_w && acc_flush_done_r;
 assign acc_mac_idle_w        = (acc_phase_r == ACC_IDLE) || acc_flush_done_r;
 // Sliding frontend done: iterator has completed the configured window scan and no
@@ -846,11 +838,23 @@ assign frontend_done_w =
     iter_done_r && (wm_state_r == ST_IDLE) && itr_pipe_empty_w;
 
 assign queue_pop_w   = (mode_r == MODE_RUN) && !s2_valid_r && q0_valid_r;
+wire signed [PSUM_W-1:0] psum_router_lane0_w = psum_router_data_in[PSUM_W-1:0];
+wire signed [PSUM_W-1:0] psum_router_lane1_w = psum_router_data_in[(2*PSUM_W)-1:PSUM_W];
+wire merge_lane1_valid_w = ((merge_idx_r + {{(PSUM_ADDR_W-1){1'b0}}, 1'b1}) <=
+                            ctrl_cfg_psum_depth_in);
+wire merge_pair_last_w = ((merge_idx_r + {{(PSUM_ADDR_W-1){1'b0}}, 1'b1}) >=
+                          ctrl_cfg_psum_depth_in);
+wire signed [PSUM_W-1:0] psum_merge_lane0_w =
+    $signed(psum_spad_rd_data0_w) + $signed(psum_router_lane0_w);
+wire signed [PSUM_W-1:0] psum_merge_lane1_w =
+    merge_lane1_valid_w
+        ? ($signed(psum_spad_rd_data1_w) + $signed(psum_router_lane1_w))
+        : {PSUM_W{1'b0}};
 assign psum_out_w = (mode_r == MODE_MERGE)
     ? (merge_out_pending_r
         ? merge_out_pending_data_r
-        : ($signed(psum_spad_rd_data0_w) + $signed(psum_router_data_in)))
-    : $signed({PSUM_W{1'b0}});
+        : {psum_merge_lane1_w, psum_merge_lane0_w})
+    : $signed({(2*PSUM_W){1'b0}});
 assign queue_full_w  = q0_valid_r & q1_valid_r;
 assign queue_empty_w = ~q0_valid_r && ~q1_valid_r;
 
@@ -891,14 +895,6 @@ always @(posedge clk) begin
                 iact_expected_data_entries_r <= {{(IACT_DATA_PTR_W+1-IACT_ADDR_W){1'b0}}, iact_router_addr_in};
             end
         end
-        if (!cluster_ctrl_load_en_in) begin
-            weight_addr_load_seen_r <= 1'b0;
-            weight_data_load_seen_r <= 1'b0;
-        end
-        if (weight_addr_load_accept_w && !weight_addr_load_seen_r)
-            weight_addr_load_seen_r <= 1'b1;
-        if (weight_data_load_accept_w && !weight_data_load_seen_r)
-            weight_data_load_seen_r <= 1'b1;
     end
 end
 
@@ -917,14 +913,11 @@ always @(posedge clk) begin
         weight_data_read_en_r       <= 1'b0;
         weight_data_read_word_idx_r <= {WEIGHT_WORD_PTR_W{1'b0}};
 
-        //add signal fix merge
         merge_req_pending_r     <= 1'b0;
 
         mac_req_pending_r <= 1'b0;
         weight_addr_loaded_r <= 1'b0;
         weight_data_loaded_r <= 1'b0;
-        weight_addr_load_seen_r <= 1'b0;
-        weight_data_load_seen_r <= 1'b0;
 
         psum_rd_en0_r <= 1'b0;
         psum_rd_en1_r <= 1'b0;
@@ -936,10 +929,10 @@ always @(posedge clk) begin
         psum_wr_addr1_r <= {PSUM_ADDR_W{1'b0}};
         psum_wr_data0_r <= {PSUM_W{1'b0}};
         psum_wr_data1_r <= {PSUM_W{1'b0}};
-        psum_out_r <= {PSUM_W{1'b0}};
+        psum_out_r <= {(2*PSUM_W){1'b0}};
         psum_in_valid_r <= 1'b0;
         merge_out_pending_r <= 1'b0;
-        merge_out_pending_data_r <= {PSUM_W{1'b0}};
+        merge_out_pending_data_r <= {(2*PSUM_W){1'b0}};
 
         q0_valid_r               <= 1'b0;
         q1_valid_r               <= 1'b0;
@@ -962,16 +955,13 @@ always @(posedge clk) begin
         weight_word_ptr_r        <= {WEIGHT_WORD_PTR_W{1'b0}};
         weight_word_end_r        <= {WEIGHT_WORD_PTR_W{1'b0}};
         weight_row_base_r        <= {PSUM_ADDR_W{1'b0}};
-        weight_first_word_r      <= 1'b1;
         weight_issue_done_r      <= 1'b0;
 
         s3_pending_r             <= 1'b0;
         s3_delay_r               <= 1'b0;
         s3_iact_value_r          <= {IACT_VALUE_W{1'b0}};
-        s3_weight_col_r          <= {WEIGHT_COL_IDX_W{1'b0}};
         s3_psum_base_r           <= {PSUM_ADDR_W{1'b0}};
         s3_weight_row_base_r     <= {PSUM_ADDR_W{1'b0}};
-        s3_weight_first_word_r   <= 1'b1;
         s3_weight_word_ptr_r     <= {WEIGHT_WORD_PTR_W{1'b0}};
         s3_weight_word_end_r     <= {WEIGHT_WORD_PTR_W{1'b0}};
 
@@ -1012,15 +1002,11 @@ always @(posedge clk) begin
         itr_rd_valid_r           <= 1'b0;
         itr_cap_valid_r          <= 1'b0;
         itr_dec_valid_r          <= 1'b0;
-        itr_rd_entry_abs_r       <= {IACT_DATA_PTR_W{1'b0}};
-        itr_rd_entry_end_r       <= {IACT_DATA_PTR_W{1'b0}};
         itr_rd_first_r           <= 1'b1;
         itr_rd_offset_base_r     <= {IACT_DATA_PTR_W{1'b0}};
         itr_rd_log_seg_r         <= {IACT_DATA_PTR_W{1'b0}};
         itr_rd_psum_base_r       <= {PSUM_ADDR_W{1'b0}};
         itr_cap_word_r           <= {IACT_DATA_W{1'b0}};
-        itr_cap_entry_abs_r      <= {IACT_DATA_PTR_W{1'b0}};
-        itr_cap_entry_end_r      <= {IACT_DATA_PTR_W{1'b0}};
         itr_cap_first_r          <= 1'b1;
         itr_cap_offset_base_r    <= {IACT_DATA_PTR_W{1'b0}};
         itr_cap_log_seg_r        <= {IACT_DATA_PTR_W{1'b0}};
@@ -1034,11 +1020,8 @@ always @(posedge clk) begin
         iter_active_r            <= 1'b0;
         iter_done_r              <= 1'b0;
         iter_seg_rel_r           <= {IACT_SEG_IDX_W{1'b0}};
-        iter_phys_seg_r          <= {SEG_PTR_W{1'b0}};
         iter_entry_abs_r         <= {IACT_DATA_PTR_W{1'b0}};
         iter_entry_end_abs_r     <= {IACT_DATA_PTR_W{1'b0}};
-        iter_first_entry_r       <= 1'b1;
-        iter_offset_base_r       <= {IACT_DATA_PTR_W{1'b0}};
         iter_logical_seg_base_r  <= {IACT_DATA_PTR_W{1'b0}};
     end else begin
 
@@ -1063,11 +1046,8 @@ always @(posedge clk) begin
             iter_active_r          <= 1'b0;
             iter_done_r            <= 1'b0;
             iter_seg_rel_r         <= {IACT_SEG_IDX_W{1'b0}};
-            iter_phys_seg_r        <= {SEG_PTR_W{1'b0}};
             iter_entry_abs_r       <= {IACT_DATA_PTR_W{1'b0}};
             iter_entry_end_abs_r   <= {IACT_DATA_PTR_W{1'b0}};
-            iter_first_entry_r     <= 1'b1;
-            iter_offset_base_r     <= {IACT_DATA_PTR_W{1'b0}};
             iter_logical_seg_base_r<= {IACT_DATA_PTR_W{1'b0}};
         wm_state_r             <= ST_IDLE;
             sliding_resp_valid_r   <= 1'b0;
@@ -1079,7 +1059,7 @@ always @(posedge clk) begin
         end
 
         // Pool compare datapath (no MAC / weight / psum use)
-        if (mode_r == MODE_POOL) begin
+        if (POOL_ENABLED && (mode_r == MODE_POOL)) begin
             if (pool_xfer_w && pool_router_win_last_in) begin
                 pool_out_r       <= pool_next_max_w;
                 pool_out_valid_r <= 1'b1;
@@ -1154,8 +1134,8 @@ always @(posedge clk) begin
                             acc_flush_done_r         <= 1'b1;
                         end
                     end else if (acc_post_compute_flush_r) begin
-                        acc_post_compute_flush_r <= ~(acc_flush_beat_done_w || ~|acc_dirty_r);
-                        if (acc_flush_beat_done_w || ~|acc_dirty_r)
+                        acc_post_compute_flush_r <= ~(acc_flush_beat_done_w || !(|acc_dirty_r));
+                        if (acc_flush_beat_done_w || !(|acc_dirty_r))
                             acc_flush_done_r <= 1'b1;
                     end
                 end
@@ -1164,7 +1144,7 @@ always @(posedge clk) begin
             endcase
 
             // Flush beat(s): up to 2 dirty rows per cycle; first beat may overlap MAC-complete cycle.
-            if (acc_flush_beat_w && |acc_dirty_active_w) begin
+            if (acc_flush_beat_w) begin
                 psum_wr_en0_r   <= 1'b1;
                 psum_wr_addr0_r <= acc_base_r + {{(PSUM_ADDR_W-ACC_ROW_IDX_W){1'b0}}, acc_flush_a_w};
                 psum_wr_data0_r <= acc_r[acc_flush_a_w];
@@ -1208,7 +1188,6 @@ always @(posedge clk) begin
 
             if (!s4_last_weight_word_w) begin
                 weight_row_base_r   <= s4_weight_next_base_w;
-                weight_first_word_r <= 1'b0;
             end
         end
         s3_pending_r <= 1'b0;
@@ -1222,12 +1201,14 @@ always @(posedge clk) begin
                 // start requirements: at least two address entries in address_spad and one data entry in data_spad
                 if (merge_req_pending_r && acc_mac_idle_w) begin
                     mode_r <= MODE_MERGE;
-                    merge_idx_r <= {PSUM_ADDR_W{1'b0}};
+                    merge_idx_r <= ctrl_cfg_psum_base_in;
                     merge_out_pending_r <= 1'b0;
                     merge_req_pending_r <= 1'b0;
-                    // Prefetch address 0 so first merge beat sees valid local psum data.
+                    // Prefetch one PSUM pair so the first merge beat sees both local values.
                     psum_rd_en0_r <= 1'b1;
-                    psum_rd_addr0_r <= {PSUM_ADDR_W{1'b0}};
+                    psum_rd_en1_r <= 1'b1;
+                    psum_rd_addr0_r <= ctrl_cfg_psum_base_in;
+                    psum_rd_addr1_r <= ctrl_cfg_psum_base_in + {{(PSUM_ADDR_W-1){1'b0}}, 1'b1};
                 end else if (mac_req_pending_r && mac_start_ready_w) begin
                     if (mac_cfg_legal_w) begin
                     mode_r                   <= MODE_RUN;
@@ -1242,11 +1223,8 @@ always @(posedge clk) begin
                     itr_cap_valid_r            <= 1'b0;
                     itr_dec_valid_r            <= 1'b0;
                     iter_seg_rel_r             <= {IACT_SEG_IDX_W{1'b0}};
-                    iter_phys_seg_r            <= {SEG_PTR_W{1'b0}};
                     iter_entry_abs_r           <= {IACT_DATA_PTR_W{1'b0}};
                     iter_entry_end_abs_r       <= {IACT_DATA_PTR_W{1'b0}};
-                    iter_first_entry_r         <= 1'b1;
-                    iter_offset_base_r         <= {IACT_DATA_PTR_W{1'b0}};
                     iter_logical_seg_base_r    <= {IACT_DATA_PTR_W{1'b0}};
                     window_psum_base_r         <= ctrl_cfg_psum_base_in;
                     acc_base_r                 <= ctrl_cfg_psum_base_in;
@@ -1269,7 +1247,7 @@ always @(posedge clk) begin
                     end else begin
                         mac_req_pending_r <= 1'b0;
                     end
-                end else if (cluster_ctrl_pool_cmp_en_in) begin
+                end else if (POOL_ENABLED && cluster_ctrl_pool_cmp_en_in) begin
                     mode_r           <= MODE_POOL;
                     pool_max_r       <= {IACT_VALUE_W{1'b0}};
                     pool_out_valid_r <= 1'b0;
@@ -1290,7 +1268,6 @@ always @(posedge clk) begin
                         end
                         ST_ITER_INIT: begin
                             iter_seg_rel_r <= {IACT_SEG_IDX_W{1'b0}};
-                            iter_phys_seg_r <= {SEG_PTR_W{1'b0}};
                             iter_logical_seg_base_r <= {IACT_DATA_PTR_W{1'b0}};
                             wm_state_r <= ST_ITER_SEG;
                         end
@@ -1303,10 +1280,6 @@ always @(posedge clk) begin
                             end else begin
                                 iter_entry_abs_r <= iact_iter_seg_begin_w;
                                 iter_entry_end_abs_r <= iact_iter_seg_end_w;
-                                iter_first_entry_r <= 1'b1;
-                                iter_offset_base_r <= {IACT_DATA_PTR_W{1'b0}};
-                                itr_rd_entry_abs_r <= iact_iter_seg_begin_w;
-                                itr_rd_entry_end_r <= iact_iter_seg_end_w;
                                 itr_rd_first_r <= 1'b1;
                                 itr_rd_offset_base_r <= {IACT_DATA_PTR_W{1'b0}};
                                 itr_rd_log_seg_r <= iter_logical_seg_base_r;
@@ -1321,8 +1294,6 @@ always @(posedge clk) begin
                         end
                         ST_ITER_PAYLOAD_CAPTURE: begin
                             itr_cap_word_r <= iact_data_resident_data_out_w;
-                            itr_cap_entry_abs_r <= itr_rd_entry_abs_r;
-                            itr_cap_entry_end_r <= itr_rd_entry_end_r;
                             itr_cap_first_r <= itr_rd_first_r;
                             itr_cap_offset_base_r <= itr_rd_offset_base_r;
                             itr_cap_log_seg_r <= itr_rd_log_seg_r;
@@ -1345,15 +1316,11 @@ always @(posedge clk) begin
                             if (sliding_resp_valid_r) begin
                                 if (frontend_task_ready_w) begin
                                     sliding_resp_valid_r <= 1'b0;
-                                    iter_offset_base_r <= sliding_resp_retire_offp1_r;
-                                    iter_first_entry_r <= 1'b0;
                                     iter_entry_abs_r <= iter_entry_next_w;
                                     if (iter_entry_is_last_w) begin
                                         wm_state_r <= ST_NEXT_SEG;
                                     end else begin
                                         wm_state_r <= ST_ITER_PAYLOAD_WAIT;
-                                        itr_rd_entry_abs_r <= iter_entry_next_w;
-                                        itr_rd_entry_end_r <= iter_entry_end_abs_r;
                                         itr_rd_first_r <= 1'b0;
                                         itr_rd_offset_base_r <= sliding_resp_retire_offp1_r;
                                         itr_rd_log_seg_r <= iter_logical_seg_base_r;
@@ -1362,16 +1329,12 @@ always @(posedge clk) begin
                                     end
                                 end
                             end else if (itr_dec_valid_r && itr_dec_skip_r) begin
-                                iter_offset_base_r <= itr_dec_offset_in_seg_r + {{(IACT_DATA_PTR_W-1){1'b0}}, 1'b1};
-                                iter_first_entry_r <= 1'b0;
                                 iter_entry_abs_r <= iter_entry_next_w;
                                 itr_dec_valid_r <= 1'b0;
                                 if (iter_entry_is_last_w) begin
                                     wm_state_r <= ST_NEXT_SEG;
-                                end else begin
-                                    wm_state_r <= ST_ITER_PAYLOAD_WAIT;
-                                    itr_rd_entry_abs_r <= iter_entry_next_w;
-                                    itr_rd_entry_end_r <= iter_entry_end_abs_r;
+                                    end else begin
+                                        wm_state_r <= ST_ITER_PAYLOAD_WAIT;
                                     itr_rd_first_r <= 1'b0;
                                     itr_rd_offset_base_r <= itr_dec_offset_in_seg_r + {{(IACT_DATA_PTR_W-1){1'b0}}, 1'b1};
                                     itr_rd_log_seg_r <= iter_logical_seg_base_r;
@@ -1395,7 +1358,6 @@ always @(posedge clk) begin
                                 wm_state_r <= ST_DONE;
                             end else begin
                                 iter_seg_rel_r <= iter_seg_rel_r + {{(IACT_SEG_IDX_W-1){1'b0}}, 1'b1};
-                                iter_phys_seg_r <= seg_ring_inc_f(iter_phys_seg_r);
                                 iter_logical_seg_base_r <= iter_logical_seg_base_r + current_segment_len_w;
                                 wm_state_r <= ST_ITER_SEG;
                             end
@@ -1429,7 +1391,6 @@ always @(posedge clk) begin
                         weight_word_ptr_r   <= weight_col_begin_w;
                         weight_word_end_r   <= weight_col_end_w;
                         weight_row_base_r   <= {PSUM_ADDR_W{1'b0}};
-                        weight_first_word_r <= 1'b1;
                         weight_issue_done_r <= 1'b0;
                         s2_valid_r          <= 1'b0;
                     end
@@ -1441,10 +1402,8 @@ always @(posedge clk) begin
                     weight_data_read_word_idx_r <= weight_word_ptr_r;
                     s3_delay_r                  <= 1'b1;
                     s3_iact_value_r             <= active_iact_value_r;
-                    s3_weight_col_r             <= active_weight_col_r;
                     s3_psum_base_r              <= active_psum_base_r;
                     s3_weight_row_base_r        <= issue_row_base_w;
-                    s3_weight_first_word_r      <= issue_first_word_w;
                     s3_weight_word_ptr_r        <= weight_word_ptr_r;
                     s3_weight_word_end_r        <= weight_word_end_r;
 
@@ -1489,17 +1448,23 @@ always @(posedge clk) begin
                     end
                 end else begin
                     psum_rd_en0_r   <= 1'b1;
+                    psum_rd_en1_r   <= 1'b1;
                     psum_rd_addr0_r <= merge_idx_r
                                      + (((psum_router_valid_in && psum_router_ready_in) &&
-                                         (merge_idx_r != ctrl_cfg_psum_depth_in))
-                                        ? {{(PSUM_ADDR_W-1){1'b0}},1'b1}
+                                         !merge_pair_last_w)
+                                        ? {{(PSUM_ADDR_W-2){1'b0}},2'b10}
                                         : {PSUM_ADDR_W{1'b0}});
+                    psum_rd_addr1_r <= merge_idx_r
+                                     + (((psum_router_valid_in && psum_router_ready_in) &&
+                                         !merge_pair_last_w)
+                                        ? {{(PSUM_ADDR_W-2){1'b0}},2'b11}
+                                        : {{(PSUM_ADDR_W-1){1'b0}},1'b1});
                     if (psum_router_valid_in && psum_router_ready_in) begin
-                        if (merge_idx_r == ctrl_cfg_psum_depth_in) begin
+                        if (merge_pair_last_w) begin
                             merge_out_pending_r      <= 1'b1;
                             merge_out_pending_data_r <= psum_out_w;
                         end else begin
-                            merge_idx_r <= merge_idx_r + {{(PSUM_ADDR_W-1){1'b0}},1'b1};
+                            merge_idx_r <= merge_idx_r + {{(PSUM_ADDR_W-2){1'b0}},2'b10};
                         end
                     end
                 end
@@ -1514,6 +1479,32 @@ always @(posedge clk) begin
                 mode_r <= MODE_IDLE;
             end
         endcase
+
+        // Direct accumulator update at S5 commit (single-cycle reg read + add + write).
+        // Keep this in the main sequential block so acc_r/acc_dirty_r have one RTL driver.
+        if (s5_acc_update_w) begin
+            if (s5_same_row_w) begin
+                if (s5_lane0_acc_en_w && s5_lane1_acc_en_w) begin
+                    acc_r[s5_local_row0_w] <= acc_sum_same_row_w;
+                    acc_dirty_r[s5_local_row0_w] <= 1'b1;
+                end else if (s5_lane0_acc_en_w) begin
+                    acc_r[s5_local_row0_w] <= acc_sum_lane0_w;
+                    acc_dirty_r[s5_local_row0_w] <= 1'b1;
+                end else if (s5_lane1_acc_en_w) begin
+                    acc_r[s5_local_row1_w] <= acc_sum_lane1_w;
+                    acc_dirty_r[s5_local_row1_w] <= 1'b1;
+                end
+            end else begin
+                if (s5_lane0_valid_r && s5_lane0_acc_en_w) begin
+                    acc_r[s5_local_row0_w] <= acc_sum_lane0_w;
+                    acc_dirty_r[s5_local_row0_w] <= 1'b1;
+                end
+                if (s5_lane1_valid_r && s5_lane1_acc_en_w) begin
+                    acc_r[s5_local_row1_w] <= acc_sum_lane1_w;
+                    acc_dirty_r[s5_local_row1_w] <= 1'b1;
+                end
+            end
+        end
 
         // 2-entry queue update, after normalized frontend push/pop decisions are known
         case ({frontend_task_valid_w && frontend_task_ready_w, queue_pop_w})
@@ -1563,37 +1554,6 @@ always @(posedge clk) begin
                 end
             end
         endcase
-end
-end
-
-// Direct accumulator update at S5 commit (single-cycle reg read + add + write)
-always @(posedge clk) begin
-    if (rst) begin
-        // acc_r reset handled in main block
-    end else if (ctrl_cfg_psum_spad_clear_in) begin
-        // acc_r cleared in main block
-    end else if (s5_valid_r && (acc_phase_r == ACC_COMPUTE) && !acc_flush_hold_w) begin
-        if (s5_lane0_valid_r && s5_lane1_valid_r && (s5_psum_addr0_r == s5_psum_addr1_r)) begin
-            if (s5_lane0_acc_en_w && s5_lane1_acc_en_w) begin
-                acc_r[s5_local_row0_w] <= acc_r[s5_local_row0_w] + s5_product0_r + s5_product1_r;
-                acc_dirty_r[s5_local_row0_w] <= 1'b1;
-            end else if (s5_lane0_acc_en_w) begin
-                acc_r[s5_local_row0_w] <= acc_r[s5_local_row0_w] + s5_product0_r;
-                acc_dirty_r[s5_local_row0_w] <= 1'b1;
-            end else if (s5_lane1_acc_en_w) begin
-                acc_r[s5_local_row1_w] <= acc_r[s5_local_row1_w] + s5_product1_r;
-                acc_dirty_r[s5_local_row1_w] <= 1'b1;
-            end
-        end else begin
-            if (s5_lane0_valid_r && s5_lane0_acc_en_w) begin
-                acc_r[s5_local_row0_w] <= acc_r[s5_local_row0_w] + s5_product0_r;
-                acc_dirty_r[s5_local_row0_w] <= 1'b1;
-            end
-            if (s5_lane1_valid_r && s5_lane1_acc_en_w) begin
-                acc_r[s5_local_row1_w] <= acc_r[s5_local_row1_w] + s5_product1_r;
-                acc_dirty_r[s5_local_row1_w] <= 1'b1;
-            end
-        end
     end
 end
 

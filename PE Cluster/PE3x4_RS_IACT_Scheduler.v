@@ -10,12 +10,12 @@ module PE3x4_RS_IACT_Scheduler (
     input  wire [4:0]  stride_in,
     input  wire [11:0] active_pe_mask_in,
     input  wire [15:0] beat_count_in,
-    input  wire [7:0]  slot_present_in,
+    input  wire [5:0]  slot_present_in,
 
     output wire        meta_valid_out,
     input  wire        meta_ready_in,
-    output wire [7:0]  slot_valid_out,
-    output wire [95:0] dst_mask_out,
+    output wire [5:0]  slot_valid_out,
+    output wire [71:0] dst_mask_out,
     output wire [15:0] beat_index_out,
     output wire        done_out,
     output wire        error_out
@@ -31,8 +31,8 @@ module PE3x4_RS_IACT_Scheduler (
     reg [15:0] beat_count_r;
     reg [15:0] beat_index_r;
 
-    reg [7:0]  slot_valid_calc_r;
-    reg [95:0] dst_mask_calc_r;
+    reg [5:0]  slot_valid_calc_r;
+    reg [71:0] dst_mask_calc_r;
     reg [11:0] effective_mask_r;
     integer lane_i;
 
@@ -51,8 +51,8 @@ module PE3x4_RS_IACT_Scheduler (
     endfunction
 
     always @* begin
-        slot_valid_calc_r = 8'h00;
-        dst_mask_calc_r = 96'h0;
+        slot_valid_calc_r = 6'h00;
+        dst_mask_calc_r = 72'h0;
         for (lane_i = 0; lane_i < 6; lane_i = lane_i + 1) begin
             effective_mask_r = s1_diagonal_mask(lane_i) & active_pe_mask_r;
             if (slot_present_in[lane_i] && (effective_mask_r != 12'h000)) begin
@@ -111,8 +111,8 @@ module PE3x4_RS_IACT_Scheduler (
     end
 
     assign meta_valid_out = (state_r == ST_EMIT);
-    assign slot_valid_out = (state_r == ST_EMIT) ? slot_valid_calc_r : 8'h00;
-    assign dst_mask_out = (state_r == ST_EMIT) ? dst_mask_calc_r : 96'h0;
+    assign slot_valid_out = (state_r == ST_EMIT) ? slot_valid_calc_r : 6'h00;
+    assign dst_mask_out = (state_r == ST_EMIT) ? dst_mask_calc_r : 72'h0;
     assign beat_index_out = beat_index_r;
     assign done_out = (state_r == ST_DONE);
     assign error_out = (state_r == ST_ERROR);

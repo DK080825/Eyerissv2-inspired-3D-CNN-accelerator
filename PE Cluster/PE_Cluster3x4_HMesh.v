@@ -17,22 +17,26 @@
 //   (includes pe_disable_in). Per-PE live aggregates deferred (see P1b).
 // ================================================================================================ //
 
-module PE_Cluster3x4_HMesh (
+module PE_Cluster3x4_HMesh #(
+    parameter integer ENABLE_POOL = 1
+) (
     input  wire                        clk,
     input  wire                        rst,
 
     input  wire [1:0]                  layer_mode_in,
     input  wire [1:0]                  iact_router_prio_in,
 
-    input  wire [7:0]                  iact_addr_slot_valid_in,
-    output wire [7:0]                  iact_addr_slot_ready_out,
-    input  wire [39:0]                 iact_addr_data_in,
-    input  wire [95:0]                 iact_addr_dst_mask_in,
+    // Three physical IACT lanes, each carrying two independently-routed packets:
+    // lane0={slot0,slot1}, lane1={slot2,slot3}, lane2={slot4,slot5}.
+    input  wire [5:0]                  iact_addr_slot_valid_in,
+    output wire [5:0]                  iact_addr_slot_ready_out,
+    input  wire [29:0]                 iact_addr_data_in,
+    input  wire [71:0]                 iact_addr_dst_mask_in,
 
-    input  wire [7:0]                  iact_data_slot_valid_in,
-    output wire [7:0]                  iact_data_slot_ready_out,
-    input  wire [103:0]                iact_data_in,
-    input  wire [95:0]                 iact_data_dst_mask_in,
+    input  wire [5:0]                  iact_data_slot_valid_in,
+    output wire [5:0]                  iact_data_slot_ready_out,
+    input  wire [71:0]                 iact_data_in,
+    input  wire [71:0]                 iact_data_dst_mask_in,
 
     input  wire [2:0]                  weight_addr_valid_in,
     output wire [2:0]                  weight_addr_ready_out,
@@ -47,13 +51,13 @@ module PE_Cluster3x4_HMesh (
     input  wire                        psum_col_sel_in,
     input  wire [3:0]                  psum_col_valid_from_router_in,
     output wire [3:0]                  psum_col_ready_from_router_out,
-    input  wire signed [83:0]          psum_col_data_from_router_in,
+    input  wire signed [167:0]         psum_col_data_from_router_in,
     input  wire [3:0]                  psum_col_valid_from_south_in,
     output wire [3:0]                  psum_col_ready_from_south_out,
-    input  wire signed [83:0]          psum_col_data_from_south_in,
+    input  wire signed [167:0]         psum_col_data_from_south_in,
     output wire [3:0]                  psum_col_valid_out,
     input  wire [3:0]                  psum_col_ready_in,
-    output wire signed [83:0]          psum_col_data_out,
+    output wire signed [167:0]         psum_col_data_out,
 
     input  wire [11:0]                 pe_disable_in,
     input  wire                        psum_enq_en_in,
@@ -93,7 +97,7 @@ module PE_Cluster3x4_HMesh (
     output wire [59:0]                 pe_iact_addr_data_out,
     output wire [11:0]                 pe_iact_data_valid_out,
     output wire [11:0]                 pe_iact_data_ready_out,
-    output wire [155:0]                pe_iact_data_out,
+    output wire [143:0]                pe_iact_data_out,
     output wire [11:0]                 pe_weight_addr_valid_out,
     output wire [11:0]                 pe_weight_addr_ready_out,
     output wire [83:0]                 pe_weight_addr_data_out,
@@ -104,10 +108,10 @@ module PE_Cluster3x4_HMesh (
     output wire [11:0]                 pe_psum_router_ready_out,
     output wire [11:0]                 pe_psum_in_valid_out,
     output wire [11:0]                 pe_psum_in_ready_out,
-    output wire signed [251:0]         pe_psum_in_data_out,
+    output wire signed [503:0]         pe_psum_in_data_out,
     output wire [11:0]                 pe_psum_out_valid_out,
     output wire [11:0]                 pe_psum_out_ready_out,
-    output wire signed [251:0]         pe_psum_out_data_out,
+    output wire signed [503:0]         pe_psum_out_data_out,
 
     // -------------------------------------------------------------------------------------------- //
     // Per-PE status from Processing_Element (packed by PE index)
@@ -131,15 +135,15 @@ module PE_Cluster3x4_HMesh (
     localparam integer PE_COUNT = PE_ROWS * PE_COLS;
     localparam integer WEIGHT_ROUTER_N = 3;
     localparam integer IACT_ADDR_W = 5;  // matches Processing_Element_core_pipeline ($clog2(16)+1)
-    localparam integer IACT_DATA_W = 13;
-    localparam integer IACT_SLOT_COUNT = 8;
+    localparam integer IACT_DATA_W = 12;
+    localparam integer IACT_PHYSICAL_LANE_COUNT = 3;
+    localparam integer IACT_PACKETS_PER_LANE = 2;
+    localparam integer IACT_SLOT_COUNT = IACT_PHYSICAL_LANE_COUNT * IACT_PACKETS_PER_LANE;
     localparam integer IACT_DATA_SLOT_COUNT = IACT_SLOT_COUNT;
     localparam integer WEIGHT_ADDR_W = 7;
     localparam integer WEIGHT_DATA_W = 24;
-    localparam integer PSUM_W = 21;
+    localparam integer PSUM_W = 42;
     localparam integer POOL_W = 8;
-
-    wire _unused_layer_mode_w       = |layer_mode_in;
 
     // NOC-F2: strip disabled PEs from all route masks before fabric ingress.
     wire [PE_COUNT-1:0] active_pe_mask_w = ~pe_disable_in;
@@ -187,9 +191,9 @@ module PE_Cluster3x4_HMesh (
 
     wire [3:0]                 psum_col_in_valid_w;
     wire [3:0]                 psum_col_in_ready_w;
-    wire signed [83:0]         psum_col_in_data_w;
+    wire signed [167:0]        psum_col_in_data_w;
     wire [3:0]                 psum_col_out_valid_w;
-    wire signed [83:0]         psum_col_out_data_w;
+    wire signed [167:0]        psum_col_out_data_w;
 
     assign psum_col_in_valid_w = psum_col_sel_in ? psum_col_valid_from_router_in : psum_col_valid_from_south_in;
     assign psum_col_in_data_w  = psum_col_sel_in ? psum_col_data_from_router_in : psum_col_data_from_south_in;
@@ -342,7 +346,9 @@ module PE_Cluster3x4_HMesh (
             assign pe_mac_en_w[pe_idx]   = do_mac_en_in   & ~pe_disable_in[pe_idx];
             assign pe_psum_enq_w[pe_idx] = psum_enq_en_in & ~pe_disable_in[pe_idx];
 
-            Processing_Element pe_inst (
+            Processing_Element #(
+                .ENABLE_POOL(ENABLE_POOL)
+            ) pe_inst (
                 .clk(clk),
                 .rst(rst),
 

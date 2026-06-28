@@ -1,15 +1,11 @@
-// ====================================================================================================== //
-// PE controller — merge (PSUM enq) request tracking only.
-//
-// Production cluster control is external to this block:
-//   cluster_ctrl_load_en_in  = FIFO/core load gate (top)
-//   cluster_ctrl_mac_en_in   = direct core MAC pulse (top)
-//   cluster_ctrl_psum_enq_en_in = merge request pulse (top; captured here for MERGE FSM)
-//   ctrl_status_cal_fin_out  = core MAC completion (top)
-//
-// This FSM accepts a rising edge on top_psum_enq_en_in, enters MERGE until
-// core_ctrl_status_psum_acc_fin_in, and asserts cluster_ctrl_psum_enq_en_out for one accept cycle.
-// ====================================================================================================== //
+// ============================================================================
+// Module      : Processing_Element_Controller
+// Author      : Do Quoc Khanh
+// Description : Local PE controller for PSUM merge request tracking.
+//               Captures a top-level PSUM enqueue request, holds the merge
+//               state until the core reports PSUM accumulation completion, and
+//               emits a clean accept pulse toward the PE core.
+// ============================================================================
 
 module Processing_Element_Controller (
     input  wire clk,

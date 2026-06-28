@@ -1,20 +1,12 @@
-// ====================================================================================================== //
-// Top-level PE wrapper around Processing_Element_core_pipeline.
-// FIFO-backed router ports; load-phase pop gating; PSUM in/out decoupling.
-//
-// Production control contract (cluster/HMesh and PE TBs):
-//   cluster_ctrl_load_en_in       = FIFO/core load gate only
-//   cluster_ctrl_mac_en_in        = direct core MAC pulse
-//   cluster_ctrl_psum_enq_en_in   = merge request to controller (core sees controller accept only)
-//   ctrl_status_cal_fin_out       = core MAC completion
-//
-// Deprecated ports (kept for compile compat; ignored internally):
-//   cluster_ctrl_external_control_en_in — always production behavior
-//   cluster_ctrl_load_session_in        — no load-session / no load_en-rise auto-MAC
-//
-// Processing_Element_Controller: PSUM merge request tracking only (see controller file).
-// IACT FIFO pop: ~write_fin latch; also allow pop during slide_safe for row-slide append.
-// ====================================================================================================== //
+// ============================================================================
+// Module      : Processing_Element
+// Author      : Do Quoc Khanh
+// Description : Top-level PE wrapper around Processing_Element_core_pipeline.
+//               Provides FIFO-backed router ports, load-phase pop gating, and
+//               PSUM input/output decoupling.
+//               Cluster control drives load, MAC, slide, and PSUM merge through
+//               this wrapper while the core performs local sparse computation.
+// ============================================================================
 
 module Processing_Element (
     input  wire                  clk,
@@ -22,10 +14,10 @@ module Processing_Element (
 
     output wire                  psum_router_ready_out,
     input  wire                  psum_router_valid_in,
-    input  wire signed [20:0]    psum_router_data_in,
+    input  wire signed [41:0]    psum_router_data_in,
     input  wire                  psum_router_ready_in,
     output wire                  psum_router_valid_out,
-    output wire signed [20:0]    psum_router_data_out,
+    output wire signed [41:0]    psum_router_data_out,
 
     output wire                  iact_router_addr_ready_out,
     input  wire                  iact_router_addr_valid_in,
@@ -33,7 +25,7 @@ module Processing_Element (
 
     output wire                  iact_router_data_ready_out,
     input  wire                  iact_router_data_valid_in,
-    input  wire [12:0]           iact_router_data_in,
+    input  wire [11:0]           iact_router_data_in,
 
     output wire                  weight_router_addr_ready_out,
     input  wire                  weight_router_addr_valid_in,
@@ -86,13 +78,14 @@ module Processing_Element (
 );
 
 parameter integer IACT_ADDR_DATA_WIDTH   = 5;
-parameter integer IACT_DATA_DATA_WIDTH   = 13;
+parameter integer IACT_DATA_DATA_WIDTH   = 12;
 parameter integer WEIGHT_ADDR_DATA_WIDTH  = 7;
 parameter integer WEIGHT_DATA_DATA_WIDTH  = 24;
+parameter integer ENABLE_POOL             = 1;
 
 wire psum_router_ready_core_w;
 wire psum_router_valid_core_w;
-wire signed [20:0] psum_router_data_core_w;
+wire signed [41:0] psum_router_data_core_w;
 wire psum_merge_out_pending_w;
 
 wire iact_addr_valid_w;
@@ -101,7 +94,7 @@ wire [4:0] iact_addr_data_w;
 
 wire iact_data_valid_w;
 wire iact_data_ready_w;
-wire [12:0] iact_data_data_w;
+wire [11:0] iact_data_data_w;
 
 wire weight_addr_valid_w;
 wire weight_addr_ready_w;
@@ -141,10 +134,10 @@ wire [4:0] fifo_iact_addr_out_w;
 
 wire fifo_iact_data_in_ready_w;
 wire fifo_iact_data_in_valid_w;
-wire [12:0] fifo_iact_data_in_w;
+wire [11:0] fifo_iact_data_in_w;
 wire fifo_iact_data_out_ready_w;
 wire fifo_iact_data_out_valid_w;
-wire [12:0] fifo_iact_data_out_w;
+wire [11:0] fifo_iact_data_out_w;
 
 wire fifo_weight_addr_in_ready_w;
 wire fifo_weight_addr_in_valid_w;
@@ -162,21 +155,21 @@ wire [23:0] fifo_weight_data_out_w;
 
 wire fifo_psum_in_in_ready_w;
 wire fifo_psum_in_in_valid_w;
-wire signed [20:0] fifo_psum_in_in_w;
+wire signed [41:0] fifo_psum_in_in_w;
 wire fifo_psum_in_out_ready_w;
 wire fifo_psum_in_out_valid_w;
-wire signed [20:0] fifo_psum_in_out_w;
+wire signed [41:0] fifo_psum_in_out_w;
 
 wire fifo_psum_out_fifo_in_ready_w;
 wire fifo_psum_out_core_ready_w;
 wire fifo_psum_out_in_valid_w;
-wire signed [20:0] fifo_psum_out_in_w;
+wire signed [41:0] fifo_psum_out_in_w;
 wire fifo_psum_out_out_ready_w;
 wire fifo_psum_out_out_valid_w;
-wire signed [20:0] fifo_psum_out_out_w;
+wire signed [41:0] fifo_psum_out_out_w;
 wire psum_passthrough_w;
 
-assign psum_passthrough_w = cluster_ctrl_psum_passthrough_en_in;
+assign psum_passthrough_w = (cluster_ctrl_psum_passthrough_en_in === 1'b1);
 assign top_psum_enq_en_w = cluster_ctrl_psum_enq_en_in;
 // Merge starts reach core only via controller accept (no top bypass).
 assign cluster_ctrl_psum_enq_core_w = cluster_ctrl_psum_enq_en_w;
@@ -210,7 +203,9 @@ Processing_Element_Controller u_processing_element_controller (
     .cluster_ctrl_psum_enq_en_out      (cluster_ctrl_psum_enq_en_w)
 );
 
-Processing_Element_core_pipeline u_processing_element_core_pipeline (
+Processing_Element_core_pipeline #(
+    .ENABLE_POOL(ENABLE_POOL)
+) u_processing_element_core_pipeline (
     .clk                               (clk),
     .rst                               (rst),
     .psum_router_ready_out             (psum_router_ready_core_w),
@@ -307,7 +302,9 @@ PE_data_FIFO #(.DATA_IN_WIDTH(WEIGHT_DATA_DATA_WIDTH)) u_weight_data_fifo (
     .data_out       (fifo_weight_data_out_w)
 );
 
-PE_psum_FIFO u_psum_in_fifo (
+PE_psum_FIFO #(
+    .DATA_WIDTH(42)
+) u_psum_in_fifo (
     .clk            (clk),
     .rst            (rst),
     .data_in_ready  (fifo_psum_in_in_ready_w),
@@ -319,6 +316,7 @@ PE_psum_FIFO u_psum_in_fifo (
 );
 
 PE_psum_FIFO #(
+    .DATA_WIDTH(42),
     .BUFFER_DEPTH(16)
 ) u_psum_out_fifo (
     .clk            (clk),

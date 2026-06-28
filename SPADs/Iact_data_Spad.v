@@ -1,12 +1,15 @@
-// ====================================================================================================== //
-// Resident-only IACT data SPAD: CSC payload log with absolute pointers (production resident path).
-// Segment commits drive Iact_Address_Spad metadata; iterator reads via resident_read_abs_idx.
-// Eyeriss v2 PE: 16×13b payload entries (physical ring; absolute wr_abs/free_abs indexing).
-// ====================================================================================================== //
+// ============================================================================
+// Module      : Iact_Data_Spad
+// Author      : Do Quoc Khanh
+// Description : Register-style resident IACT data SPAD for CSC payload words.
+//               Uses absolute ring-buffer pointers for append-only sliding
+//               windows while the iterator reads resident payload entries.
+//               Segment boundary metadata is managed by Iact_Address_Spad.
+// ============================================================================
 
 module Iact_Data_Spad
 #(
-    parameter integer IACT_DATA_W      = 13,
+    parameter integer IACT_DATA_W      = 12,
     parameter integer SPAD_DEPTH       = 16,
     // Absolute ring pointers: SPAD_DEPTH entries need +1 bit for monotonic wr/free indexing.
     parameter integer RES_ABS_PTR_W    = ($clog2(SPAD_DEPTH) + 1)
@@ -36,7 +39,8 @@ module Iact_Data_Spad
 
 localparam integer RESIDENT_DATA_IDX_W = $clog2(SPAD_DEPTH);
 
-(* ram_style = "distributed" *)
+// PE-local resident IACT payload storage is intentionally register-style.
+(* ram_style = "registers", ramstyle = "logic" *)
 reg [IACT_DATA_W-1:0] mem [0:SPAD_DEPTH-1];
 
 reg [RES_ABS_PTR_W-1:0]    resident_seg_begin_abs;
