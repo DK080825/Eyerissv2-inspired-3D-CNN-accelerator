@@ -1,6 +1,5 @@
 // ============================================================================
 // Module      : PE3x4_Cluster_System
-// Author      : Do Quoc Khanh
 // Description : One-cluster wrapper for GLB Cluster, Router Cluster,
 //               Dataflow Controller, and PE_Cluster3x4_Top.
 //               GLB stores payload only.
