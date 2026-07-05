@@ -1,6 +1,5 @@
 // ============================================================================
 // Module      : Iact_Address_Spad
-// Author      : Do Quoc Khanh
 // Description : Local IACT address storage inside one PE.
 //               It stores segment boundaries for the current IACT window.
 //               It detects the sentinel word that marks load completion.
