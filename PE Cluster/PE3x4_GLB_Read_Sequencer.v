@@ -3,7 +3,6 @@
 
 // ============================================================================
 // Module      : PE3x4_GLB_Read_Sequencer
-// Author      : Do Quoc Khanh
 // Description : Reusable sequential read sequencer for GLB payload regions.
 //               Latches start/base/count, issues ordered read requests, and
 //               presents stable payload words to downstream logic.
