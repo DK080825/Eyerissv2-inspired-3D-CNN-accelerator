@@ -3,7 +3,6 @@
 
 // ============================================================================
 // Module      : PE3x4_GLB_IACT_ADDR_MEM
-// Author      : Do Quoc Khanh
 // Description : Payload-only GLB memory for IACT address payloads.
 //               Stores three physical IACT lanes, each lane carrying two
 //               5-bit address packets. This module is storage only: it does not
