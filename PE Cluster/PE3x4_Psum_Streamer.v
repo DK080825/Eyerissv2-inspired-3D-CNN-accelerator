@@ -2,7 +2,6 @@
 
 // ============================================================================
 // Module      : PE3x4_Psum_Streamer
-// Author      : Do Quoc Khanh
 // Description : Moves PSUM result data from the PE cluster to PSUM GLB.
 //               It can also read PSUM seed words from GLB and send them
 //               to the PE cluster before the result is returned.
