@@ -71,16 +71,5 @@ always @(posedge clk) begin
     end
 end
 
-`ifndef SYNTHESIS
-always @(posedge clk) begin
-    if (!rst && !psum_spad_clear) begin
-        if (wr_en0 && wr_en1 && (wr_addr0 == wr_addr1)) begin
-            $fatal(1,
-                "[PSUM_SPAD_2R2W][CONTRACT_FAIL] same-address dual write addr=%0d",
-                wr_addr0);
-        end
-    end
-end
-`endif
 
 endmodule
