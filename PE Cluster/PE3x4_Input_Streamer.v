@@ -2,7 +2,6 @@
 
 // ============================================================================
 // Module      : PE3x4_Input_Streamer
-// Author      : Do Quoc Khanh
 // Description : Reads IACT and Weight words from GLB and sends them to the PE
 //               cluster. One GLB read engine is shared by the four streams
 //               because the controller starts one stream at a time. Each GLB
