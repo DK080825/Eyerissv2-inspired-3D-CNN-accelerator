@@ -1,26 +1,29 @@
 // ============================================================================
 // Module      : Processing_Element_Controller
 // Author      : Do Quoc Khanh
-// Description : Local PE controller for PSUM merge request tracking.
-//               Captures a top-level PSUM enqueue request, holds the merge
-//               state until the core reports PSUM accumulation completion, and
-//               emits a clean accept pulse toward the PE core.
+// Description : Small controller inside one PE wrapper.
+//               It receives a PSUM output request from the cluster.
+//               It sends one clean request pulse to the PE core.
+//               It waits until the core reports PSUM output done.
 // ============================================================================
 
 module Processing_Element_Controller (
     input  wire clk,
     input  wire rst,
 
+    // Cluster controller -> PE wrapper: request PSUM output.
     input  wire top_psum_enq_en_in,
+    // PE core -> PE wrapper: PSUM output is done.
     input  wire core_ctrl_status_psum_acc_fin_in,
 
+    // PE wrapper -> PE core: one-cycle PSUM output request.
     output wire cluster_ctrl_psum_enq_en_out
 );
 
 localparam [0:0] IDLE  = 1'b0;
 localparam [0:0] MERGE = 1'b1;
 
-reg pe_state_r, pe_state_next_w;
+reg pe_state_r;
 
 reg psum_req_pending_r;
 reg top_psum_enq_en_d_r;
@@ -33,28 +36,8 @@ assign new_psum_req_w = top_psum_enq_en_in & ~top_psum_enq_en_d_r;
 assign psum_req_seen_w = psum_req_pending_r | new_psum_req_w;
 assign accept_psum_req_w = (pe_state_r == IDLE) && psum_req_seen_w;
 
-// Combinational accept pulse (core merge_req must see enq same cycle as accept).
+// One-cycle pulse sent to the core when the request is accepted.
 assign cluster_ctrl_psum_enq_en_out = accept_psum_req_w;
-
-always @(*) begin
-    case (pe_state_r)
-        IDLE: begin
-            if (accept_psum_req_w)
-                pe_state_next_w = MERGE;
-            else
-                pe_state_next_w = IDLE;
-        end
-
-        MERGE: begin
-            if (core_ctrl_status_psum_acc_fin_in)
-                pe_state_next_w = IDLE;
-            else
-                pe_state_next_w = MERGE;
-        end
-
-        default: pe_state_next_w = IDLE;
-    endcase
-end
 
 always @(posedge clk) begin
     if (rst) begin
@@ -62,9 +45,15 @@ always @(posedge clk) begin
         psum_req_pending_r         <= 1'b0;
         top_psum_enq_en_d_r <= 1'b0;
     end else begin
-        pe_state_r <= pe_state_next_w;
         top_psum_enq_en_d_r <= top_psum_enq_en_in;
         psum_req_pending_r <= (psum_req_pending_r | new_psum_req_w) & ~accept_psum_req_w;
+
+        if (pe_state_r == IDLE) begin
+            if (accept_psum_req_w)
+                pe_state_r <= MERGE;
+        end else if (core_ctrl_status_psum_acc_fin_in) begin
+            pe_state_r <= IDLE;
+        end
     end
 end
 

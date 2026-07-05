@@ -3,18 +3,20 @@
 // ============================================================================
 // Module      : Weight_Router
 // Author      : Do Quoc Khanh
-// Description : Circuit-switched router for one Weight row lane.
-//               Selects local or horizontal-neighbor Weight streams and routes
-//               them toward the local PE row and/or horizontal neighbor.
-//               Scheduling and row delivery policy are provided externally.
+// Description : Router for one Weight row lane.
+//               It chooses Weight data from the local cluster or horizontal neighbor.
+//               It sends the selected data to the PE row and optionally onward.
+//               It does not decide which PE row uses the Weight data.
 // ============================================================================
 module Weight_Router #(
     parameter integer ADDR_W = 7,
     parameter integer DATA_W = 24
 ) (
-    input  wire                 data_in_sel_in,  // 0: local GLB, 1: horizontal neighbor
+    // Config -> router: input source and optional horizontal output.
+    input  wire                 data_in_sel_in,  // 0: local, 1: horizontal neighbor
     input  wire                 route_horizontal_in,
 
+    // Local cluster -> router.
     input  wire                 local_addr_valid_in,
     output wire                 local_addr_ready_out,
     input  wire [ADDR_W-1:0]    local_addr_in,
@@ -22,6 +24,7 @@ module Weight_Router #(
     output wire                 local_data_ready_out,
     input  wire [DATA_W-1:0]    local_data_in,
 
+    // Horizontal neighbor -> router.
     input  wire                 horizontal_addr_valid_in,
     output wire                 horizontal_addr_ready_out,
     input  wire [ADDR_W-1:0]    horizontal_addr_in,
@@ -29,6 +32,7 @@ module Weight_Router #(
     output wire                 horizontal_data_ready_out,
     input  wire [DATA_W-1:0]    horizontal_data_in,
 
+    // Router -> local PE row.
     output wire                 pe_addr_valid_out,
     input  wire                 pe_addr_ready_in,
     output wire [ADDR_W-1:0]    pe_addr_out,
@@ -36,6 +40,7 @@ module Weight_Router #(
     input  wire                 pe_data_ready_in,
     output wire [DATA_W-1:0]    pe_data_out,
 
+    // Router -> horizontal neighbor.
     output wire                 horizontal_addr_valid_out,
     input  wire                 horizontal_addr_ready_in,
     output wire [ADDR_W-1:0]    horizontal_addr_out,

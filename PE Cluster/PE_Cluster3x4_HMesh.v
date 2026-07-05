@@ -1,28 +1,15 @@
 // ================================================================================================ //
-// 3x4 PE cluster top with parameterized intra-cluster NoC.
+// 3x4 PE cluster local fabric.
 // Layout mapping: PE index = row * 4 + col, with rows=3 and cols=4.
 //
-// Processing_Element production control (all 12 PEs):
-//   cluster_ctrl_load_en_in             = do_load_en_in & ~pe_disable_in[pe]
-//   cluster_ctrl_mac_en_in              = do_mac_en_in  & ~pe_disable_in[pe]
-//   cluster_ctrl_psum_enq_en_in         = psum_enq_en_in & ~pe_disable_in[pe] (P1a)
-//   ctrl_status_cal_fin_out               = core MAC completion (PE wrapper)
-//
-// layer_mode_in: reserved — no HMesh routing/FSM behavior; |layer_mode_in| only silences lint.
-//
-// Cluster sticky status (compatibility until Dataflow audit):
-//   all_write_fin_out / all_cal_fin_out use OR-accumulated write_fin_r / cal_fin_r
-//   (includes pe_disable_in). Per-PE live aggregates deferred (see P1b).
+// The controller sends data, masks, load/MAC controls, and clear pulses.
+// HMesh fans data into the 12 PEs and returns only the status bits the
+// controller needs.
 // ================================================================================================ //
 
-module PE_Cluster3x4_HMesh #(
-    parameter integer ENABLE_POOL = 1
-) (
+module PE_Cluster3x4_HMesh (
     input  wire                        clk,
     input  wire                        rst,
-
-    input  wire [1:0]                  layer_mode_in,
-    input  wire [1:0]                  iact_router_prio_in,
 
     // Three physical IACT lanes, each carrying two independently-routed packets:
     // lane0={slot0,slot1}, lane1={slot2,slot3}, lane2={slot4,slot5}.
@@ -46,13 +33,9 @@ module PE_Cluster3x4_HMesh #(
     input  wire [71:0]                 weight_data_in,
     input  wire [11:0]                 weight_data_row_dst_mask_in,
 
-    input  wire                        psum_col_sel_in,
-    input  wire [3:0]                  psum_col_valid_from_router_in,
-    output wire [3:0]                  psum_col_ready_from_router_out,
-    input  wire signed [167:0]         psum_col_data_from_router_in,
-    input  wire [3:0]                  psum_col_valid_from_south_in,
-    output wire [3:0]                  psum_col_ready_from_south_out,
-    input  wire signed [167:0]         psum_col_data_from_south_in,
+    input  wire [3:0]                  psum_col_valid_in,
+    output wire [3:0]                  psum_col_ready_out,
+    input  wire signed [167:0]         psum_col_data_in,
     output wire [3:0]                  psum_col_valid_out,
     input  wire [3:0]                  psum_col_ready_in,
     output wire signed [167:0]         psum_col_data_out,
@@ -63,53 +46,13 @@ module PE_Cluster3x4_HMesh #(
     input  wire                        do_mac_en_in,
     input  wire                        iact_write_fin_clear_in,
     input  wire                        weight_write_fin_clear_in,
-    input  wire [4:0]                  psum_depth_in,
     input  wire                        psum_spad_clear_in,
-    output wire                        all_write_fin_out,
-    output wire                        all_cal_fin_out,
 
-    input  wire [4:0]                  ctrl_cfg_window_size_in,
     input  wire [4:0]                  ctrl_cfg_segment_len_in,
     input  wire [3:0]                  ctrl_cfg_window_seg_count_in,
-    input  wire [4:0]                  ctrl_cfg_psum_base_in,
     input  wire [5:0]                  ctrl_cfg_m0_in,
     input  wire                        ctrl_cfg_iact_flush_in,
     input  wire                        ctrl_cfg_slide_commit_in,
-
-    input  wire [11:0]                 pool_cmp_en_in,
-    input  wire [11:0]                 pool_cmp_stop_in,
-    input  wire [11:0]                 pool_elem_valid_in,
-    output wire [11:0]                 pool_elem_ready_out,
-    input  wire signed [95:0]          pool_elem_data_in,
-    input  wire [11:0]                 pool_win_first_in,
-    input  wire [11:0]                 pool_win_last_in,
-    output wire [11:0]                 pool_out_valid_out,
-    input  wire [11:0]                 pool_out_ready_in,
-    output wire signed [95:0]          pool_out_data_out,
-
-    // -------------------------------------------------------------------------------------------- //
-    // Per-PE observability: fabric <-> PE router interface (packed by PE index)
-    // -------------------------------------------------------------------------------------------- //
-    output wire [11:0]                 pe_iact_addr_valid_out,
-    output wire [11:0]                 pe_iact_addr_ready_out,
-    output wire [59:0]                 pe_iact_addr_data_out,
-    output wire [11:0]                 pe_iact_data_valid_out,
-    output wire [11:0]                 pe_iact_data_ready_out,
-    output wire [143:0]                pe_iact_data_out,
-    output wire [11:0]                 pe_weight_addr_valid_out,
-    output wire [11:0]                 pe_weight_addr_ready_out,
-    output wire [83:0]                 pe_weight_addr_data_out,
-    output wire [11:0]                 pe_weight_data_valid_out,
-    output wire [11:0]                 pe_weight_data_ready_out,
-    output wire [287:0]                pe_weight_data_out,
-
-    output wire [11:0]                 pe_psum_router_ready_out,
-    output wire [11:0]                 pe_psum_in_valid_out,
-    output wire [11:0]                 pe_psum_in_ready_out,
-    output wire signed [503:0]         pe_psum_in_data_out,
-    output wire [11:0]                 pe_psum_out_valid_out,
-    output wire [11:0]                 pe_psum_out_ready_out,
-    output wire signed [503:0]         pe_psum_out_data_out,
 
     // -------------------------------------------------------------------------------------------- //
     // Per-PE status from Processing_Element (packed by PE index)
@@ -120,13 +63,7 @@ module PE_Cluster3x4_HMesh #(
     output wire [11:0]                 pe_weight_data_write_fin_out,
     output wire [11:0]                 pe_psum_acc_fin_out,
     output wire [11:0]                 pe_slide_safe_out,
-    output wire [11:0]                 pe_all_write_fin_out,
-    output wire [11:0]                 pe_cal_fin_out,
-    output wire [11:0]                 pe_load_en_out,
-
-    // Cluster FSM sticky flags (per PE, OR-accumulated)
-    output wire [11:0]                 pe_write_fin_sticky_out,
-    output wire [11:0]                 pe_cal_fin_sticky_out
+    output wire [11:0]                 pe_cal_fin_out
 );
     localparam integer PE_ROWS = 3;
     localparam integer PE_COLS = 4;
@@ -141,7 +78,6 @@ module PE_Cluster3x4_HMesh #(
     localparam integer WEIGHT_ADDR_W = 7;
     localparam integer WEIGHT_DATA_W = 24;
     localparam integer PSUM_W = 42;
-    localparam integer POOL_W = 8;
 
     // NOC-F2: strip disabled PEs from all route masks before fabric ingress.
     wire [PE_COUNT-1:0] active_pe_mask_w = ~pe_disable_in;
@@ -181,48 +117,13 @@ module PE_Cluster3x4_HMesh #(
     wire [PE_COUNT-1:0] pe_weight_data_write_fin_w;
     wire [PE_COUNT-1:0] pe_psum_acc_fin_w;
     wire [PE_COUNT-1:0] pe_slide_safe_w;
-    wire [PE_COUNT-1:0] pe_all_write_fin_w;
     wire [PE_COUNT-1:0] pe_cal_fin_w;
     wire [PE_COUNT-1:0] pe_load_en_w;
     wire [PE_COUNT-1:0] pe_mac_en_w;
     wire [PE_COUNT-1:0] pe_psum_enq_w;
 
-    wire [3:0]                 psum_col_in_valid_w;
-    wire [3:0]                 psum_col_in_ready_w;
-    wire signed [167:0]        psum_col_in_data_w;
-    wire [3:0]                 psum_col_out_valid_w;
-    wire signed [167:0]        psum_col_out_data_w;
-
-    assign psum_col_in_valid_w = psum_col_sel_in ? psum_col_valid_from_router_in : psum_col_valid_from_south_in;
-    assign psum_col_in_data_w  = psum_col_sel_in ? psum_col_data_from_router_in : psum_col_data_from_south_in;
-    assign psum_col_ready_from_router_out = psum_col_sel_in ? psum_col_in_ready_w : 4'b0;
-    assign psum_col_ready_from_south_out  = psum_col_sel_in ? 4'b0 : psum_col_in_ready_w;
-    assign psum_col_valid_out             = psum_col_out_valid_w;
-    assign psum_col_data_out              = psum_col_out_data_w;
-
-    // Fabric <-> PE tap (packed buses)
-    assign pe_iact_addr_valid_out   = pe_iact_addr_valid_w;
-    assign pe_iact_addr_ready_out   = pe_iact_addr_ready_w;
-    assign pe_iact_addr_data_out    = pe_iact_addr_data_w;
-    assign pe_iact_data_valid_out   = pe_iact_data_valid_w;
-    assign pe_iact_data_ready_out   = pe_iact_data_ready_w;
-    assign pe_iact_data_out         = pe_iact_data_data_w;
-    assign pe_weight_addr_valid_out = pe_weight_addr_valid_w;
-    assign pe_weight_addr_ready_out = pe_weight_addr_ready_w;
-    assign pe_weight_addr_data_out  = pe_weight_addr_data_w;
-    assign pe_weight_data_valid_out = pe_weight_data_valid_w;
-    assign pe_weight_data_ready_out = pe_weight_data_ready_w;
-    assign pe_weight_data_out       = pe_weight_data_data_w;
-
-    assign pe_psum_router_ready_out = pe_psum_router_ready_w;
     // ColumnReduce pe_psum_in_ready[*] must track each PE input-side ready (from wrapper).
     assign pe_psum_in_ready_w         = pe_psum_router_ready_w;
-    assign pe_psum_in_valid_out     = pe_psum_in_valid_w;
-    assign pe_psum_in_ready_out     = pe_psum_in_ready_w;
-    assign pe_psum_in_data_out      = pe_psum_in_data_w;
-    assign pe_psum_out_valid_out    = pe_psum_out_valid_w;
-    assign pe_psum_out_ready_out    = pe_psum_out_ready_w;
-    assign pe_psum_out_data_out     = pe_psum_out_data_w;
 
     // PE status tap
     assign pe_iact_addr_write_fin_out   = pe_iact_addr_write_fin_w;
@@ -231,17 +132,7 @@ module PE_Cluster3x4_HMesh #(
     assign pe_weight_data_write_fin_out = pe_weight_data_write_fin_w;
     assign pe_psum_acc_fin_out          = pe_psum_acc_fin_w;
     assign pe_slide_safe_out            = pe_slide_safe_w;
-    assign pe_all_write_fin_out         = pe_all_write_fin_w;
     assign pe_cal_fin_out               = pe_cal_fin_w;
-    assign pe_load_en_out               = pe_load_en_w;
-
-    reg  [PE_COUNT-1:0] write_fin_r;
-    reg  [PE_COUNT-1:0] cal_fin_r;
-
-    assign all_write_fin_out        = &write_fin_r;
-    assign all_cal_fin_out          = &cal_fin_r;
-    assign pe_write_fin_sticky_out  = write_fin_r;
-    assign pe_cal_fin_sticky_out    = cal_fin_r;
 
     genvar iact_addr_slot_g;
     generate
@@ -254,7 +145,6 @@ module PE_Cluster3x4_HMesh #(
     PE3x4_IACT_Atomic_Mask_Fabric #(
         .PE_ROWS(PE_ROWS), .PE_COLS(PE_COLS), .SRC_COUNT(IACT_ADDR_SLOT_COUNT), .DATA_W(IACT_ADDR_W)
     ) u_iact_addr_fabric (
-        .router_prio_in(2'b00),
         .src_valid_in(iact_addr_slot_valid_in),
         .src_ready_out(iact_addr_slot_ready_out),
         .src_data_in(iact_addr_data_in),
@@ -277,7 +167,6 @@ module PE_Cluster3x4_HMesh #(
     PE3x4_IACT_Atomic_Mask_Fabric #(
         .PE_ROWS(PE_ROWS), .PE_COLS(PE_COLS), .SRC_COUNT(IACT_DATA_SLOT_COUNT), .DATA_W(IACT_DATA_W)
     ) u_iact_data_fabric (
-        .router_prio_in(iact_router_prio_in),
         .src_valid_in(iact_data_slot_valid_in),
         .src_ready_out(iact_data_slot_ready_out),
         .src_data_in(iact_data_in),
@@ -322,12 +211,12 @@ module PE_Cluster3x4_HMesh #(
     PE3x4_PSUM_ColumnReduce #(
         .PE_ROWS(PE_ROWS), .PE_COLS(PE_COLS), .DATA_W(PSUM_W)
     ) u_psum_column_reduce (
-        .col_in_valid(psum_col_in_valid_w),
-        .col_in_ready(psum_col_in_ready_w),
-        .col_in_data(psum_col_in_data_w),
-        .col_out_valid(psum_col_out_valid_w),
+        .col_in_valid(psum_col_valid_in),
+        .col_in_ready(psum_col_ready_out),
+        .col_in_data(psum_col_data_in),
+        .col_out_valid(psum_col_valid_out),
         .col_out_ready(psum_col_ready_in),
-        .col_out_data(psum_col_out_data_w),
+        .col_out_data(psum_col_data_out),
         .pe_psum_in_valid(pe_psum_in_valid_w),
         .pe_psum_in_ready(pe_psum_in_ready_w),
         .pe_psum_in_data(pe_psum_in_data_w),
@@ -344,9 +233,7 @@ module PE_Cluster3x4_HMesh #(
             assign pe_mac_en_w[pe_idx]   = do_mac_en_in   & ~pe_disable_in[pe_idx];
             assign pe_psum_enq_w[pe_idx] = psum_enq_en_in & ~pe_disable_in[pe_idx];
 
-            Processing_Element #(
-                .ENABLE_POOL(ENABLE_POOL)
-            ) pe_inst (
+            Processing_Element pe_inst (
                 .clk(clk),
                 .rst(rst),
 
@@ -386,42 +273,16 @@ module PE_Cluster3x4_HMesh #(
 
                 .iact_write_fin_clear(iact_write_fin_clear_in),
                 .weight_write_fin_clear(weight_write_fin_clear_in),
-                .all_write_fin(pe_all_write_fin_w[pe_idx]),
+                .all_write_fin(),
 
-                .ctrl_cfg_psum_depth_in(psum_depth_in),
                 .psum_spad_clear(psum_spad_clear_in),
-                .ctrl_cfg_window_size_in(ctrl_cfg_window_size_in),
                 .ctrl_cfg_segment_len_in(ctrl_cfg_segment_len_in),
                 .ctrl_cfg_window_seg_count_in(ctrl_cfg_window_seg_count_in),
-                .ctrl_cfg_psum_base_in(ctrl_cfg_psum_base_in),
                 .ctrl_cfg_m0_in(ctrl_cfg_m0_in),
                 .ctrl_cfg_iact_flush_in(ctrl_cfg_iact_flush_in),
-                .ctrl_cfg_slide_commit_in(ctrl_cfg_slide_commit_in),
-
-                .cluster_ctrl_pool_cmp_en_in(pool_cmp_en_in[pe_idx]),
-                .cluster_ctrl_pool_cmp_stop_in(pool_cmp_stop_in[pe_idx]),
-                .pool_router_elem_valid_in(pool_elem_valid_in[pe_idx]),
-                .pool_router_elem_ready_out(pool_elem_ready_out[pe_idx]),
-                .pool_router_elem_data_in(pool_elem_data_in[(pe_idx*POOL_W) +: POOL_W]),
-                .pool_router_win_first_in(pool_win_first_in[pe_idx]),
-                .pool_router_win_last_in(pool_win_last_in[pe_idx]),
-                .pool_router_out_valid_out(pool_out_valid_out[pe_idx]),
-                .pool_router_out_ready_in(pool_out_ready_in[pe_idx]),
-                .pool_router_out_data_out(pool_out_data_out[(pe_idx*POOL_W) +: POOL_W])
+                .ctrl_cfg_slide_commit_in(ctrl_cfg_slide_commit_in)
             );
         end
     endgenerate
 
-    always @(posedge clk) begin
-        if (rst) begin
-            write_fin_r <= {PE_COUNT{1'b0}};
-            cal_fin_r   <= {PE_COUNT{1'b0}};
-        end else if (all_cal_fin_out) begin
-            write_fin_r <= {PE_COUNT{1'b0}};
-            cal_fin_r   <= {PE_COUNT{1'b0}};
-        end else begin
-            write_fin_r <= write_fin_r | pe_all_write_fin_w | pe_disable_in;
-            cal_fin_r   <= cal_fin_r   | pe_cal_fin_w       | pe_disable_in;
-        end
-    end
 endmodule

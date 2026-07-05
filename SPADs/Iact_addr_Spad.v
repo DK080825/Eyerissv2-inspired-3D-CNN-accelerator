@@ -1,10 +1,11 @@
 // ============================================================================
 // Module      : Iact_Address_Spad
 // Author      : Do Quoc Khanh
-// Description : Register-style CSC boundary SPAD for resident IACT segments.
-//               Stores cumulative segment boundaries, detects the address
-//               sentinel, and supports slide updates for append-only windows.
-//               Empty segments are represented by repeated boundaries.
+// Description : Local IACT address storage inside one PE.
+//               It stores segment boundaries for the current IACT window.
+//               It detects the sentinel word that marks load completion.
+//               During sliding, it shifts old boundaries and opens one new
+//               segment position for the appended IACT data.
 // ============================================================================
 
 `default_nettype none
@@ -17,19 +18,22 @@ module Iact_Address_Spad #(
     input  wire                        clk,
     input  wire                        rst,
 
+    // Fabric -> SPAD: boundary word.
     output wire                        data_in_ready,
     input  wire                        data_in_valid,
     input  wire [IACT_ADDR_W-1:0]      data_in,
+
+    // PE core -> SPAD: load control.
     input  wire                        write_en,
     input  wire                        flush,
     output reg                         write_fin,
 
+    // PE core -> SPAD: read one segment boundary pair.
     input  wire [IACT_ADDR_IDX_W-1:0]           rd_seg_idx,
     output wire [IACT_ADDR_W-1:0]     seg_begin,
     output wire [IACT_ADDR_W-1:0]     seg_end,
 
-    // Resident window slide (no flush): shift boundary chain left by one segment, reopen programming
-    // so host can append one new boundary + sentinel. slide_append_idx = cfg_window_seg_count (S).
+    // PE core -> SPAD: slide window and append one new segment.
     input  wire                        slide_shift,
     input  wire [IACT_ADDR_IDX_W-1:0]  slide_append_idx,
     output wire [IACT_ADDR_W-1:0]      boundary1_out
@@ -39,11 +43,11 @@ module Iact_Address_Spad #(
   localparam integer WA_W = $clog2(IACT_ADDR_VECTOR_DEPTH);
 
   localparam [IACT_ADDR_W-1:0] IACT_ADDR_SENTINEL = {IACT_ADDR_W{1'b1}};
-  // Write position: 0..(DEPTH-2) = stored boundaries; (DEPTH-1) = await sentinel (no data beat).
+  // Write position: stored boundaries first, then wait for sentinel.
   localparam [WA_W:0] PTR_LAST_DATA  = (IACT_ADDR_VECTOR_DEPTH - 1);
   localparam [WA_W:0] PTR_AWAIT_SENT = IACT_ADDR_VECTOR_DEPTH[WA_W:0];
 
-  // PE-local metadata is intentionally kept as register-style storage.
+  // Small PE-local storage: keep as registers.
   (* ram_style = "registers", ramstyle = "logic" *)
   reg [IACT_ADDR_W-1:0] iact_address_vector[0:IACT_ADDR_VECTOR_DEPTH-1];
 
@@ -52,7 +56,7 @@ module Iact_Address_Spad #(
   reg          overflow_latched_r;
   reg          await_sentinel_r;
 
-  // Ready: no combinatorial dependency on data_in.
+  // Ready does not depend on data_in.
   assign data_in_ready =
       write_en && !program_done_r && !overflow_latched_r && !flush &&
       ((spad_write_addr_r < IACT_ADDR_VECTOR_DEPTH[WA_W:0]) || await_sentinel_r);

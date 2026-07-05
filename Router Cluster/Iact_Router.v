@@ -3,19 +3,21 @@
 // ============================================================================
 // Module      : Iact_Router
 // Author      : Do Quoc Khanh
-// Description : Circuit-switched router for one IACT physical lane.
-//               Each physical lane carries two independently handshaken
-//               logical packets for IACT address/data traffic.
-//               Source selection is performed before route selection.
+// Description : Router for one IACT lane.
+//               One IACT lane carries two small packets.
+//               The router first chooses one input source.
+//               Then it sends the selected data to the PE and optional neighbors.
 // ============================================================================
 module Iact_Router #(
     parameter integer ADDR_W = 10,
     parameter integer DATA_W = 24,
     parameter integer PACKET_N = 2
 ) (
+    // Config -> router: input source and output directions.
     input  wire [1:0]              data_in_sel_in,
-    input  wire [2:0]              route_mask_in, // {horizontal, south, north}; local PE is always selected
+    input  wire [2:0]              route_mask_in, // {horizontal, south, north}; PE path is always enabled.
 
+    // Local cluster -> router.
     input  wire [PACKET_N-1:0]     local_addr_valid_in,
     output wire [PACKET_N-1:0]     local_addr_ready_out,
     input  wire [ADDR_W-1:0]       local_addr_in,
@@ -23,6 +25,7 @@ module Iact_Router #(
     output wire [PACKET_N-1:0]     local_data_ready_out,
     input  wire [DATA_W-1:0]       local_data_in,
 
+    // North neighbor -> router.
     input  wire [PACKET_N-1:0]     north_addr_valid_in,
     output wire [PACKET_N-1:0]     north_addr_ready_out,
     input  wire [ADDR_W-1:0]       north_addr_in,
@@ -30,6 +33,7 @@ module Iact_Router #(
     output wire [PACKET_N-1:0]     north_data_ready_out,
     input  wire [DATA_W-1:0]       north_data_in,
 
+    // South neighbor -> router.
     input  wire [PACKET_N-1:0]     south_addr_valid_in,
     output wire [PACKET_N-1:0]     south_addr_ready_out,
     input  wire [ADDR_W-1:0]       south_addr_in,
@@ -37,6 +41,7 @@ module Iact_Router #(
     output wire [PACKET_N-1:0]     south_data_ready_out,
     input  wire [DATA_W-1:0]       south_data_in,
 
+    // Horizontal neighbor -> router.
     input  wire [PACKET_N-1:0]     horizontal_addr_valid_in,
     output wire [PACKET_N-1:0]     horizontal_addr_ready_out,
     input  wire [ADDR_W-1:0]       horizontal_addr_in,
@@ -44,6 +49,7 @@ module Iact_Router #(
     output wire [PACKET_N-1:0]     horizontal_data_ready_out,
     input  wire [DATA_W-1:0]       horizontal_data_in,
 
+    // Router -> local PE cluster.
     output wire [PACKET_N-1:0]     pe_addr_valid_out,
     input  wire [PACKET_N-1:0]     pe_addr_ready_in,
     output wire [ADDR_W-1:0]       pe_addr_out,
@@ -51,6 +57,7 @@ module Iact_Router #(
     input  wire [PACKET_N-1:0]     pe_data_ready_in,
     output wire [DATA_W-1:0]       pe_data_out,
 
+    // Router -> north neighbor.
     output wire [PACKET_N-1:0]     north_addr_valid_out,
     input  wire [PACKET_N-1:0]     north_addr_ready_in,
     output wire [ADDR_W-1:0]       north_addr_out,
@@ -58,6 +65,7 @@ module Iact_Router #(
     input  wire [PACKET_N-1:0]     north_data_ready_in,
     output wire [DATA_W-1:0]       north_data_out,
 
+    // Router -> south neighbor.
     output wire [PACKET_N-1:0]     south_addr_valid_out,
     input  wire [PACKET_N-1:0]     south_addr_ready_in,
     output wire [ADDR_W-1:0]       south_addr_out,
@@ -65,6 +73,7 @@ module Iact_Router #(
     input  wire [PACKET_N-1:0]     south_data_ready_in,
     output wire [DATA_W-1:0]       south_data_out,
 
+    // Router -> horizontal neighbor.
     output wire [PACKET_N-1:0]     horizontal_addr_valid_out,
     input  wire [PACKET_N-1:0]     horizontal_addr_ready_in,
     output wire [ADDR_W-1:0]       horizontal_addr_out,

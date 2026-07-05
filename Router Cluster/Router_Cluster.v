@@ -3,13 +3,14 @@
 // ============================================================================
 // Module      : Router_Cluster
 // Author      : Do Quoc Khanh
-// Description : Source/path fabric for local IACT, Weight, and PSUM streams.
-//               Contains 3 IACT physical-lane routers, 3 Weight row routers,
-//               and 4 PSUM column routers.
-//               It does not generate schedules or PE delivery masks; those
-//               decisions remain in the Dataflow Controller/local fabric path.
+// Description : Router group around one PE cluster.
+//               It chooses where each data stream comes from and where it goes.
+//               It contains 3 IACT routers, 3 Weight routers, and 4 PSUM routers.
+//               It does not create PE masks or compute schedules.
+//               The controller/local fabric still decides which PE receives data.
 // ============================================================================
 module Router_Cluster (
+    // Config -> Router: choose input source and output direction.
     input  wire [5:0]   iact_data_in_sel_in,
     input  wire [8:0]   iact_route_mask_in,
     input  wire [2:0]   weight_data_in_sel_in,
@@ -17,24 +18,28 @@ module Router_Cluster (
     input  wire [3:0]   psum_data_in_sel_in,
     input  wire [3:0]   psum_route_to_pe_in,
 
+    // Local cluster -> IACT routers.
     input  wire [5:0]   local_iact_addr_valid_in,
     output wire [5:0]   local_iact_addr_ready_out,
     input  wire [29:0]  local_iact_addr_in,
     input  wire [5:0]   local_iact_data_valid_in,
     output wire [5:0]   local_iact_data_ready_out,
     input  wire [71:0]  local_iact_data_in,
+    // North neighbor -> IACT routers.
     input  wire [5:0]   north_iact_addr_valid_in,
     output wire [5:0]   north_iact_addr_ready_out,
     input  wire [29:0]  north_iact_addr_in,
     input  wire [5:0]   north_iact_data_valid_in,
     output wire [5:0]   north_iact_data_ready_out,
     input  wire [71:0]  north_iact_data_in,
+    // South neighbor -> IACT routers.
     input  wire [5:0]   south_iact_addr_valid_in,
     output wire [5:0]   south_iact_addr_ready_out,
     input  wire [29:0]  south_iact_addr_in,
     input  wire [5:0]   south_iact_data_valid_in,
     output wire [5:0]   south_iact_data_ready_out,
     input  wire [71:0]  south_iact_data_in,
+    // Horizontal neighbor -> IACT routers.
     input  wire [5:0]   horizontal_iact_addr_valid_in,
     output wire [5:0]   horizontal_iact_addr_ready_out,
     input  wire [29:0]  horizontal_iact_addr_in,
@@ -42,6 +47,7 @@ module Router_Cluster (
     output wire [5:0]   horizontal_iact_data_ready_out,
     input  wire [71:0]  horizontal_iact_data_in,
 
+    // IACT routers -> local PE cluster and neighbors.
     output wire [5:0]   pe_iact_addr_valid_out,
     input  wire [5:0]   pe_iact_addr_ready_in,
     output wire [29:0]  pe_iact_addr_out,
@@ -67,6 +73,7 @@ module Router_Cluster (
     input  wire [5:0]   horizontal_iact_data_ready_in,
     output wire [71:0]  horizontal_iact_data_out,
 
+    // Local cluster and horizontal neighbor -> Weight routers.
     input  wire [2:0]   local_weight_addr_valid_in,
     output wire [2:0]   local_weight_addr_ready_out,
     input  wire [20:0]  local_weight_addr_in,
@@ -79,6 +86,7 @@ module Router_Cluster (
     input  wire [2:0]   horizontal_weight_data_valid_in,
     output wire [2:0]   horizontal_weight_data_ready_out,
     input  wire [71:0]  horizontal_weight_data_in,
+    // Weight routers -> local PE cluster and horizontal neighbor.
     output wire [2:0]   pe_weight_addr_valid_out,
     input  wire [2:0]   pe_weight_addr_ready_in,
     output wire [20:0]  pe_weight_addr_out,
@@ -92,12 +100,14 @@ module Router_Cluster (
     input  wire [2:0]   horizontal_weight_data_ready_in,
     output wire [71:0]  horizontal_weight_data_out,
 
+    // PE cluster -> PSUM routers -> local output path.
     input  wire [3:0]   pe_psum_return_valid_in,
     output wire [3:0]   pe_psum_return_ready_out,
     input  wire [167:0] pe_psum_return_data_in,
     output wire [3:0]   local_psum_return_valid_out,
     input  wire [3:0]   local_psum_return_ready_in,
     output wire [167:0] local_psum_return_data_out,
+    // Local/north PSUM input -> PSUM routers -> PE cluster or south neighbor.
     input  wire [3:0]   local_psum_forward_valid_in,
     output wire [3:0]   local_psum_forward_ready_out,
     input  wire [167:0] local_psum_forward_data_in,

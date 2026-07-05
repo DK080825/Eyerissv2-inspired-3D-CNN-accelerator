@@ -1,8 +1,10 @@
-// ====================================================================================================== //
-// PE data FIFO
-// Standard ready/valid FIFO
-// For FPGA implementation, Vivado FIFO IP is still preferred for synthesis.
-// ====================================================================================================== //
+// ============================================================================
+// Module      : PE_data_FIFO
+// Author      : Do Quoc Khanh
+// Description : Small ready/valid FIFO for PE address/data streams.
+//               It keeps incoming data until the PE side can consume it.
+//               The FIFO is used between the local fabric and one PE.
+// ============================================================================
 
 module PE_data_FIFO #(
     parameter DATA_IN_WIDTH = 4,
@@ -11,12 +13,12 @@ module PE_data_FIFO #(
     input  wire                     clk,
     input  wire                     rst,
 
-    // input side
+    // Source -> FIFO.
     output wire                     data_in_ready,
     input  wire                     data_in_valid,
     input  wire [DATA_IN_WIDTH-1:0] data_in,
 
-    // output side
+    // FIFO -> PE.
     input  wire                     data_out_ready,
     output wire                     data_out_valid,
     output wire [DATA_IN_WIDTH-1:0] data_out
@@ -37,16 +39,16 @@ wire read_fire_w;
 assign empty_w = (fifo_count_r == 0);
 assign full_w  = (fifo_count_r == BUFFER_DEPTH);
 
-// FIFO can accept data when not full
+// Source can write when FIFO is not full.
 assign data_in_ready = ~full_w;
 
-// FIFO has valid output when not empty
+// PE can read when FIFO is not empty.
 assign data_out_valid = ~empty_w;
 
-// read current front element
+// Current front element.
 assign data_out = buffer_r[rd_ptr_r];
 
-// handshake events
+// Transfer events.
 assign write_fire_w = data_in_valid  && data_in_ready;
 assign read_fire_w  = data_out_valid && data_out_ready;
 
@@ -61,7 +63,7 @@ always @(posedge clk) begin
         end
     end
     else begin
-        // write
+        // Store one input word.
         if (write_fire_w) begin
             buffer_r[wr_ptr_r] <= data_in;
             if (wr_ptr_r == BUFFER_DEPTH-1)
@@ -70,7 +72,7 @@ always @(posedge clk) begin
                 wr_ptr_r <= wr_ptr_r + 1'b1;
         end
 
-        // read
+        // Remove one output word.
         if (read_fire_w) begin
             if (rd_ptr_r == BUFFER_DEPTH-1)
                 rd_ptr_r <= {ADDR_WIDTH{1'b0}};
@@ -78,7 +80,7 @@ always @(posedge clk) begin
                 rd_ptr_r <= rd_ptr_r + 1'b1;
         end
 
-        // count update
+        // Track how many words are stored.
         case ({write_fire_w, read_fire_w})
             2'b10: fifo_count_r <= fifo_count_r + 1'b1; // write only
             2'b01: fifo_count_r <= fifo_count_r - 1'b1; // read only

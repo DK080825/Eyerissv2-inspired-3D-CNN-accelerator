@@ -4,10 +4,9 @@
 // ============================================================================
 // Module      : PE3x4_GLB_WEIGHT_DATA_MEM
 // Author      : Do Quoc Khanh
-// Description : Payload-only GLB leaf memory for three Weight data row lanes.
-//               Stores packed 24-bit data payloads for physical rows 0..2.
-//               It does not store valid bits, row masks, routing metadata, or
-//               Row-Stationary scheduling decisions.
+// Description : Payload-only GLB memory for Weight data payloads.
+//               Stores three physical row lanes, each lane carrying one packed
+//               24-bit CSC weight-data word. This module is storage only.
 // ============================================================================
 
 module PE3x4_GLB_WEIGHT_DATA_MEM #(
@@ -19,59 +18,72 @@ module PE3x4_GLB_WEIGHT_DATA_MEM #(
     input  wire                 host_wr_valid_in,
     output wire                 host_wr_ready_out,
     input  wire [AWIDTH-1:0]    host_wr_addr_in,
-    input  wire [71:0]         host_wr_data_in,
+    input  wire [71:0]          host_wr_data_in,
 
     input  wire                 host_rd_valid_in,
     output wire                 host_rd_ready_out,
     input  wire [AWIDTH-1:0]    host_rd_addr_in,
     output wire                 host_rd_valid_out,
     input  wire                 host_rd_ready_in,
-    output wire [71:0]         host_rd_data_out,
+    output wire [71:0]          host_rd_data_out,
 
     input  wire                 ctrl_rd_valid_in,
     output wire                 ctrl_rd_ready_out,
     input  wire [AWIDTH-1:0]    ctrl_rd_addr_in,
     output wire                 ctrl_rd_valid_out,
     input  wire                 ctrl_rd_ready_in,
-    output wire [71:0]         ctrl_rd_data_out
+    output wire [71:0]          ctrl_rd_data_out
 );
 
-    localparam integer BANK_COUNT = 3;
-    localparam integer BANK_DW = 24;
-    localparam integer TOTAL_DW = 72;
+    localparam integer DEPTH = (1 << AWIDTH);
 
-    PE3x4_GLB_Banked_Sync_Memory #(
-        .AWIDTH(AWIDTH),
-        .BANK_COUNT(BANK_COUNT),
-        .BANK_DW(BANK_DW),
-        .TOTAL_DW(TOTAL_DW),
-        .READ_LATENCY(1),
-        .ENABLE_HOST_READ(1),
-        .ENABLE_DP_WRITE(0)
-    ) u_mem (
-        .clk(clk),
-        .rst(rst),
-        .host_wr_valid_in(host_wr_valid_in),
-        .host_wr_ready_out(host_wr_ready_out),
-        .host_wr_addr_in(host_wr_addr_in),
-        .host_wr_data_in(host_wr_data_in),
-        .host_rd_valid_in(host_rd_valid_in),
-        .host_rd_ready_out(host_rd_ready_out),
-        .host_rd_addr_in(host_rd_addr_in),
-        .host_rd_valid_out(host_rd_valid_out),
-        .host_rd_ready_in(host_rd_ready_in),
-        .host_rd_data_out(host_rd_data_out),
-        .ctrl_rd_valid_in(ctrl_rd_valid_in),
-        .ctrl_rd_ready_out(ctrl_rd_ready_out),
-        .ctrl_rd_addr_in(ctrl_rd_addr_in),
-        .ctrl_rd_valid_out(ctrl_rd_valid_out),
-        .ctrl_rd_ready_in(ctrl_rd_ready_in),
-        .ctrl_rd_data_out(ctrl_rd_data_out),
-        .dp_wr_valid_in(1'b0),
-        .dp_wr_ready_out(),
-        .dp_wr_addr_in({AWIDTH{1'b0}}),
-        .dp_wr_data_in({TOTAL_DW{1'b0}})
-    );
+    (* ram_style = "block" *) reg [71:0] mem_r [0:DEPTH-1];
+
+    reg        ctrl_rd_valid_r;
+    reg [71:0] ctrl_rd_data_r;
+
+    reg        host_rd_valid_r;
+    reg [71:0] host_rd_data_r;
+
+    wire ctrl_rd_accept_w;
+    wire host_rd_accept_w;
+
+    assign host_wr_ready_out = 1'b1;
+
+    assign ctrl_rd_ready_out = !ctrl_rd_valid_r || ctrl_rd_ready_in;
+    assign ctrl_rd_accept_w = ctrl_rd_valid_in && ctrl_rd_ready_out;
+
+    assign host_rd_ready_out = (!host_rd_valid_r || host_rd_ready_in) && !ctrl_rd_accept_w;
+    assign host_rd_accept_w = host_rd_valid_in && host_rd_ready_out;
+
+    assign ctrl_rd_valid_out = ctrl_rd_valid_r;
+    assign ctrl_rd_data_out  = ctrl_rd_data_r;
+    assign host_rd_valid_out = host_rd_valid_r;
+    assign host_rd_data_out  = host_rd_data_r;
+
+    always @(posedge clk) begin
+        if (rst) begin
+            ctrl_rd_valid_r <= 1'b0;
+            ctrl_rd_data_r  <= 72'b0;
+            host_rd_valid_r <= 1'b0;
+            host_rd_data_r  <= 72'b0;
+        end else begin
+            if (host_wr_valid_in)
+                mem_r[host_wr_addr_in] <= host_wr_data_in;
+
+            if (!ctrl_rd_valid_r || ctrl_rd_ready_in) begin
+                ctrl_rd_valid_r <= ctrl_rd_accept_w;
+                if (ctrl_rd_accept_w)
+                    ctrl_rd_data_r <= mem_r[ctrl_rd_addr_in];
+            end
+
+            if (!host_rd_valid_r || host_rd_ready_in) begin
+                host_rd_valid_r <= host_rd_accept_w;
+                if (host_rd_accept_w)
+                    host_rd_data_r <= mem_r[host_rd_addr_in];
+            end
+        end
+    end
 
 endmodule
 

@@ -1,8 +1,10 @@
-// ====================================================================================================== //
-// PE psum FIFO
-// Standard ready/valid FIFO
-// For FPGA implementation, Vivado FIFO IP is still preferred for synthesis.
-// ====================================================================================================== //
+// ============================================================================
+// Module      : PE_psum_FIFO
+// Author      : Do Quoc Khanh
+// Description : Small ready/valid FIFO for signed PSUM streams.
+//               It keeps PSUM data until the next side can accept it.
+//               The FIFO is used on PE PSUM input and output paths.
+// ============================================================================
 
 module PE_psum_FIFO #(
     parameter DATA_WIDTH   = 21,
@@ -11,12 +13,12 @@ module PE_psum_FIFO #(
     input  wire                     clk,
     input  wire                     rst,
 
-    // input side
+    // Source -> FIFO.
     output wire                     data_in_ready,
     input  wire                     data_in_valid,
     input  wire signed [DATA_WIDTH-1:0] data_in,
 
-    // output side
+    // FIFO -> destination.
     input  wire                     data_out_ready,
     output wire                     data_out_valid,
     output wire signed [DATA_WIDTH-1:0] data_out
@@ -37,32 +39,28 @@ wire read_fire_w;
 assign empty_w = (fifo_count_r == 0);
 assign full_w  = (fifo_count_r == BUFFER_DEPTH);
 
-// upstream can write when FIFO is not full
+// Source can write when FIFO is not full.
 assign data_in_ready = ~full_w;
 
-// downstream sees valid when FIFO is not empty
+// Destination sees valid when FIFO is not empty.
 assign data_out_valid = ~empty_w;
 
-// front element of FIFO
+// Current front element.
 assign data_out = buffer_r[rd_ptr_r];
 
-// handshake events
+// Transfer events.
 assign write_fire_w = data_in_valid  && data_in_ready;
 assign read_fire_w  = data_out_valid && data_out_ready;
 
-integer i;
 always @(posedge clk) begin
     if (rst) begin
         wr_ptr_r     <= {ADDR_WIDTH{1'b0}};
         rd_ptr_r     <= {ADDR_WIDTH{1'b0}};
         fifo_count_r <= {(ADDR_WIDTH+1){1'b0}};
 
-        for (i = 0; i < BUFFER_DEPTH; i = i + 1) begin
-            buffer_r[i] <= {DATA_WIDTH{1'b0}};
-        end
     end
     else begin
-        // write side
+        // Store one input PSUM.
         if (write_fire_w) begin
             buffer_r[wr_ptr_r] <= data_in;
 
@@ -72,7 +70,7 @@ always @(posedge clk) begin
                 wr_ptr_r <= wr_ptr_r + 1'b1;
         end
 
-        // read side
+        // Remove one output PSUM.
         if (read_fire_w) begin
             if (rd_ptr_r == BUFFER_DEPTH-1)
                 rd_ptr_r <= {ADDR_WIDTH{1'b0}};
@@ -80,7 +78,7 @@ always @(posedge clk) begin
                 rd_ptr_r <= rd_ptr_r + 1'b1;
         end
 
-        // occupancy counter
+        // Track how many PSUM words are stored.
         case ({write_fire_w, read_fire_w})
             2'b10: fifo_count_r <= fifo_count_r + 1'b1; // write only
             2'b01: fifo_count_r <= fifo_count_r - 1'b1; // read only

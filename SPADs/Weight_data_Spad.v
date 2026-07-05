@@ -1,10 +1,10 @@
 // ============================================================================
 // Module      : Weight_Data_Spad
 // Author      : Do Quoc Khanh
-// Description : SRAM-style local SPAD for packed Weight CSC data words.
+// Description : Local Weight data storage inside one PE.
 //               Each 24-bit word stores two 12-bit count/value entries.
-//               Provides synchronous one-cycle read data for the PE backend
-//               without clearing the full memory array on reset.
+//               The PE core reads one packed word and uses the non-zero
+//               entries for MAC. The memory is written during Weight load.
 // ============================================================================
 
 module Weight_Data_Spad
@@ -18,16 +18,16 @@ module Weight_Data_Spad
 (
     input  wire                         clk,
     input  wire                         rst,
-    // data in signals
+    // Fabric -> SPAD: packed Weight data word.
     output wire                         data_in_ready,
     input  wire                         data_in_valid,
     input  wire [WEIGHT_PACKED_W-1:0]   data_in,
-    // data out signals
+    // SPAD -> PE core: two unpacked Weight entries.
     output wire [WEIGHT_VALUE_W-1:0]    lane0_value,
     output wire [WEIGHT_COUNT_W-1:0]    lane0_count,
     output wire [WEIGHT_VALUE_W-1:0]    lane1_value,
     output wire [WEIGHT_COUNT_W-1:0]    lane1_count,
-    // control signals
+    // PE core -> SPAD: load and read control.
     input  wire                         write_en,
     output wire                         write_fin,
     input  wire                         read_en,
@@ -65,8 +65,7 @@ assign data_in_shake = (data_in_ready == 1'b1) && (data_in_valid == 1'b1) && (wr
 // write finished when sentinel 0 word is written
 assign write_fin = (data_in == {WEIGHT_PACKED_W{1'b0}}) && (data_in_shake == 1'b1);
 
-// Keep old arbitration style:
-// if write happens this cycle, normal read is not served this cycle
+// If a write happens this cycle, the read side waits.
 assign rd_fire = (read_en == 1'b1) && (data_in_shake == 1'b0);
 
 // ================================================ //
@@ -79,7 +78,7 @@ always @(posedge clk) begin
         mem_data_out    <= {WEIGHT_PACKED_W{1'b0}};
     end
     else begin
-        // write path
+        // Store incoming Weight word.
         if (data_in_shake) begin
             mem[spad_write_addr] <= data_in;
 
@@ -91,8 +90,7 @@ always @(posedge clk) begin
             end
         end
 
-        // synchronous read path: one-cycle registered output
-        // when a write is happening, suppress normal read output just like old BRAM wrapper
+        // Read one Weight word with one-cycle registered output.
         if (rd_fire) begin
             mem_data_out <= mem[read_word_idx];
         end
@@ -100,7 +98,7 @@ always @(posedge clk) begin
             mem_data_out <= {WEIGHT_PACKED_W{1'b0}};
         end
 
-        // read-valid delayed by 1 cycle
+        // Read-valid delayed by one cycle.
         rd_fire_d <= rd_fire;
     end
 end
@@ -108,7 +106,7 @@ end
 // ================================================ //
 //                   Output unpack                  //
 // ================================================ //
-// Assumed packing:
+// Weight word packing:
 //   lane0 = data_out[11:0]  = {value[11:4], count[3:0]}
 //   lane1 = data_out[23:12] = {value[11:4], count[3:0]}
 assign lane0_packed = mem_data_out[WEIGHT_VALUE_W+WEIGHT_COUNT_W-1:0];
@@ -120,8 +118,8 @@ assign lane0_value = lane0_packed[WEIGHT_VALUE_W+WEIGHT_COUNT_W-1 : WEIGHT_COUNT
 assign lane1_count = lane1_packed[WEIGHT_COUNT_W-1:0];
 assign lane1_value = lane1_packed[WEIGHT_VALUE_W+WEIGHT_COUNT_W-1 : WEIGHT_COUNT_W];
 
-// valid in cycle after read request
-// lane is invalid if packed lane value is zero
+// Valid in the cycle after a read request.
+// A lane is invalid if its value field is zero.
 assign lane0_valid = (rd_fire_d == 1'b1) && (lane0_value != {WEIGHT_VALUE_W{1'b0}});
 assign lane1_valid = (rd_fire_d == 1'b1) && (lane1_value != {WEIGHT_VALUE_W{1'b0}});
 
