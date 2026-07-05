@@ -2,7 +2,6 @@
 
 // ============================================================================
 // Module      : PE_Cluster3x4_Dataflow_Controller
-// Author      : Do Quoc Khanh
 // Description : Main controller for one 3x4 PE cluster.
 //               It reads the job settings, starts GLB reads, starts PE load,
 //               MAC, slide, and PSUM writeback steps, then reports done.
