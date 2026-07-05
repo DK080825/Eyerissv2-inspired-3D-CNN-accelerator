@@ -1,6 +1,5 @@
 // ============================================================================
 // Module      : PE_Cluster3x4_Top
-// Author      : Do Quoc Khanh
 // Description : Top wrapper for one 3x4 PE cluster.
 //               It connects the controller, router side, and local PE array.
 //               GLB provides payload. The controller provides control and masks.
